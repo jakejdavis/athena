@@ -1,5 +1,7 @@
 import keras.datasets.mnist
 import numpy as np
+from numpy import ndarray
+from typing import Tuple
 
 def is_pareto_efficient(costs, return_mask = True):
     """
@@ -34,7 +36,7 @@ def partial_derivative(func, x, var_index, epsilon=1e-5):
     delta[var_index] = epsilon
     return (func(*(x + delta)) - func(*(x - delta))) / (2 * epsilon)
 
-def generate_mnist_inputs(output, n = 100):
+def generate_mnist_inputs(output: int, n: int = 100) -> Tuple[ndarray, ndarray]:
     mnist = keras.datasets.mnist.load_data()
 
     i_pos = np.random.choice(np.where(mnist[1][1] == output)[0], n, replace=False)
@@ -42,7 +44,7 @@ def generate_mnist_inputs(output, n = 100):
 
     return (mnist[0][0][i_pos], mnist[0][0][i_neg])
 
-def generate_inputs(name, output):
+def generate_inputs(name: str, output: int) -> Tuple[ndarray, ndarray]:
     if name == "mnist_conv":
         return generate_mnist_inputs(output)
 

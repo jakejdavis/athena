@@ -5,20 +5,24 @@ import sys
 sys.path.append("../")
 import utils
 import utils.model_utils
+from keras.engine.sequential import Sequential
+from numpy import ndarray
+from tensorflow.python.ops.resource_variable_ops import ResourceVariable
+from typing import Callable, List, Union
 
-def compute_gradient_loss(weight, M, inputs, loss_func):
+def compute_gradient_loss(weight: ResourceVariable, M: Sequential, inputs: ndarray, loss_func: Callable) -> int:
     return 0
     #return utils.partial_derivative(loss_func, inputs, weight)
 
-def compute_forward_impact(weight, M, inputs):
+def compute_forward_impact(weight: ResourceVariable, M: Sequential, inputs: ndarray) -> int:
     return 0        
 
-def extract_pareto(pool):
+def extract_pareto(pool: List[Union[ResourceVariable, float]]) -> None:
     """function which extracts the pareto front from a pool of solutions"""
     # pareto_pool = [tuple(v) for v in np.asarray(pool, dtype = object)]
     pass
 
-def bidirectional_localisation(M, i_neg, i_pos):
+def bidirectional_localisation(M: Sequential, i_neg: ndarray, i_pos: ndarray) -> None:
     """
         M: a keras model 
         i_neg: a set of inputs that reveal the fault
