@@ -1,5 +1,5 @@
 import colorlog
-import logging 
+import logging
 
 handler = colorlog.StreamHandler()
 

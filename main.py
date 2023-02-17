@@ -3,9 +3,12 @@ from logger import logger, set_logger_level
 import importlib
 import os
 import h5py
+from typing import cast
+
 import operators.arachne_operators
 import keras
 import utils
+
 
 TRAINED_MODELS_DIR = "trained_models"
 
@@ -40,8 +43,8 @@ def run(subject_name, test_set, mutants_dir, metrics_dir, verbose):
     #    subject_train.main(subject_name)
 
     logger.info("Loading trained model")
-    model = keras.models.load_model(os.path.join(TRAINED_MODELS_DIR, subject_name + "_trained.h5"))
-    i_pos, i_neg = utils.generate_inputs(subject_name, 1)    
+    model = cast(keras.Sequential, keras.models.load_model(os.path.join(TRAINED_MODELS_DIR, subject_name + "_trained.h5")))
+    i_pos, i_neg = utils.generate_inputs(subject_name, model)    
 
     operators.arachne_operators.operator_arachne(model, i_pos, i_neg)
 
