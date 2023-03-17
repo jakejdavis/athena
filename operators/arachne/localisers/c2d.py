@@ -12,5 +12,5 @@ class C2DLocaliser(Localiser):
     def compute_gradient_loss(self, inputs: ndarray) -> int:
         pass
 
-    def compute_forward_impact(self, inputs: ndarray) -> int:
+    def compute_fi_gl(self, inputs: ndarray) -> int:
         pass
