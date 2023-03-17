@@ -2,9 +2,10 @@ from keras.engine.compile_utils import LossesContainer
 import numpy as np
 import logging
 import tensorflow as tf
-from keras.layers import Normalization
+from sklearn.preprocessing import Normalizer
 
 import sys
+
 sys.path.append("../")
 import utils
 import utils.model_utils
@@ -15,81 +16,86 @@ from keras.engine.sequential import Sequential
 from numpy import ndarray
 from tensorflow.python.ops.resource_variable_ops import ResourceVariable
 from typing import Callable, List, Union
+from tqdm import tqdm
 
-def compute_gradient_loss(weight: ResourceVariable, M: Sequential, inputs: ndarray, loss_func: Callable) -> int:
-    with tf.GradientTape() as tape:
-        tape.watch(weight)
-        loss = loss_func(M(inputs), M(inputs))
 
-    return tape.gradient(loss, weight)
+def extract_pareto(layer_fi_gl_pos, layer_fi_gl_neg):
+    shapes = {}
+    costs_by_keys = []
+    indicies_to_nodes = []
+    layer_indicies = list(layer_fi_gl_neg.keys())
+    for layer_index in tqdm(layer_indicies):
+        cost_pos = layer_fi_gl_pos[layer_index]["costs"]
+        cost_neg = layer_fi_gl_neg[layer_index]["costs"]
+        shapes[layer_index] = layer_fi_gl_pos[layer_index]["shape"]
 
-def compute_forward_impact(weight: ResourceVariable, M: Sequential, inputs: ndarray) -> int:
-    return 0        
+        combined_costs = cost_neg / (1.0 + cost_pos)
 
-def extract_pareto(pool: List[Union[ResourceVariable, float]]) -> None:
-    """function which extracts the pareto front from a pool of solutions"""
-    # pareto_pool = [tuple(v) for v in np.asarray(pool, dtype = object)]
-    # using utils.is_pareto_efficient
-    pass
+        for i, cost in enumerate(combined_costs):
+            costs_by_keys.append(([layer_index, i], cost))
+            indicies_to_nodes.append(
+                [layer_index, np.unravel_index(i, shapes[layer_index])]
+            )
 
-def bidirectional_localisation(model: Sequential, i_neg: ndarray, i_pos: ndarray) -> None:
+    costs = np.asarray([cost for _, cost in costs_by_keys])
+    _costs = costs.copy()
+    is_efficient = np.arange(costs.shape[0])
+    next_point_index = 0
+    while next_point_index < len(_costs):
+        nondominated_point_mask = np.any(_costs > _costs[next_point_index], axis=1)
+        nondominated_point_mask[next_point_index] = True
+        is_efficient = is_efficient[nondominated_point_mask]
+        _costs = _costs[nondominated_point_mask]
+        next_point_index = np.sum(nondominated_point_mask[:next_point_index]) + 1
+
+    pareto_front = [
+        tuple(efficient_point)
+        for efficient_point in np.asarray(indicies_to_nodes, dtype=object)[is_efficient]
+    ]
+
+    return pareto_front, costs_by_keys
+
+
+def bidirectional_localisation(model: Sequential, pos: tuple, neg: tuple) -> None:
     """
-        M: a keras model 
-        i_neg: a set of inputs that reveal the fault
-        i_pos: a set of inputs that do not reveal the fault
+    M: a keras model
+    i_neg: a set of inputs that reveal the fault
+    i_pos: a set of inputs that do not reveal the fault
     """
 
     assert isinstance(model.loss, Callable), "Loss function is not callable"
-    loss_func: Callable = model.loss.__call__
-    
-    pool = {}
-   
-    i_pos_indices = np.random.choice(len(i_pos), len(i_neg), replace=False)
-    i_pos = i_pos[i_pos_indices]
 
-    logging.debug("Input shape: {}".format(i_neg.shape))
+    logging.debug("Input shape: {}".format(neg[0].shape))
 
-    norm_scaler = Normalization()
+    norm_scaler = Normalizer(norm="l1")
 
-    for layer_index, layer_weights in enumerate(model.weights):
-        layer_type = utils.model_utils.get_layer_type(layer_weights.name)
+    fi_gl_neg = {}
+    fi_gl_pos = {}
+
+    for layer_index, layer in enumerate(model.layers):
+        layer_type = utils.model_utils.get_layer_type(layer.name)
         logging.debug("Layer type: {}".format(layer_type))
 
-        if layer_type == "C2D": 
-            logging.debug("Skipping layer: {}".format(layer_type))
+        if len(layer.weights) == 0:
+            logging.debug("Skipping layer with 0 weights: {}".format(layer.name))
             continue
 
-        localiser = localisers.get_localiser(layer_type)(model, layer_index, layer_weights, norm_scaler)
+        layer_weights = layer.weights[0]
+        logging.debug("Layer weights (kernel) shape: {}".format(layer_weights.shape))
 
-        fwd_imp_neg = localiser.compute_forward_impact(i_neg)
-        fwd_imp_pos = localiser.compute_forward_impact(i_pos)
+        # TODO: add other layer types
+        if layer_type == "C2D":
+            logging.debug("Skipping layer C2D (NI): {}".format(layer_type))
+            continue
 
-        fwd_imp = fwd_imp_neg / (1 + fwd_imp_pos)
+        localiser = localisers.get_localiser(layer_type)(
+            model, layer_index, layer_weights, norm_scaler
+        )
 
-        logging.info("Forward impact: {}".format(fwd_imp))
-        
-        grad_loss_neg = -localiser.compute_gradient_loss(i_neg)
-        grad_loss_pos = -localiser.compute_gradient_loss(i_pos)
+        layer_fi_gl_neg = localiser.compute_fi_gl(neg)
+        layer_fi_gl_pos = localiser.compute_fi_gl(pos)
 
-        grad_loss = grad_loss_neg / (1 + grad_loss_pos)
+        fi_gl_neg[layer_index] = layer_fi_gl_neg
+        fi_gl_pos[layer_index] = layer_fi_gl_pos
 
-        logging.info("Gradient loss: {}".format(grad_loss))
-
-
-        pool[layer_weights.name] = (grad_loss, fwd_imp)
-
-        """grad_loss_neg = -compute_gradient_loss(weight, M, i_neg, loss_func)
-        grad_loss_pos = -compute_gradient_loss(weight, M, i_pos, loss_func)
-
-        grad_loss = grad_loss_neg / (1 + grad_loss_pos)
-
-        logging.debug("Gradient loss: {}".format(grad_loss))
-
-        fwd_imp_neg = compute_forward_impact(weight, M, i_neg)
-        fwd_imp_pos = compute_forward_impact(weight, M, i_pos)
-
-        fwd_imp = fwd_imp_neg / (1 + fwd_imp_pos)
-
-        pool[weight] = (grad_loss, fwd_imp)"""
-
-    return None#extract_pareto(pool)
+    return extract_pareto(fi_gl_pos, fi_gl_neg)
