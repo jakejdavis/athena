@@ -110,13 +110,6 @@ def generate_fashionmnist_inputs_outputs(
     o_pos = []
     o_neg = []
 
-    arachne_output = {
-        "X": inputs,
-        "y": outputs,
-        "indices_to_chgd": [],
-        "indices_to_unchgd": [],
-    }
-
     while len(i_pos) < n or len(i_neg) < n:
         random_index = np.random.randint(0, len(inputs))
         data = inputs[random_index].reshape(1, img_rows * img_cols)
@@ -127,8 +120,6 @@ def generate_fashionmnist_inputs_outputs(
                 i_pos.append(inputs[random_index])
                 o_pos.append(outputs[random_index])
 
-                arachne_output["indices_to_unchgd"].append(random_index)
-
                 logging.debug(
                     "Generated %d positive and %d negative examples"
                     % (len(i_pos), len(i_neg))
@@ -138,16 +129,12 @@ def generate_fashionmnist_inputs_outputs(
                 i_neg.append(inputs[random_index])
                 o_neg.append(outputs[random_index])
 
-                arachne_output["indices_to_chgd"].append(random_index)
                 logging.debug(
                     "Generated %d positive and %d negative examples"
                     % (len(i_pos), len(i_neg))
                 )
 
     logging.info("Done generating examples!")
-
-    with open("arachne_output.pkl", "wb") as f:
-        pickle.dump(arachne_output, f)
 
     return (np.array(i_pos), np.array(o_pos)), (np.array(i_neg), np.array(o_neg))
 

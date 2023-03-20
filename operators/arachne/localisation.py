@@ -1,30 +1,39 @@
-from keras.engine.compile_utils import LossesContainer
-import numpy as np
 import logging
-import tensorflow as tf
-from sklearn.preprocessing import Normalizer
-
 import sys
 
+import numpy as np
+import tensorflow as tf
+from keras.engine.compile_utils import LossesContainer
+from sklearn.preprocessing import Normalizer
+
 sys.path.append("../")
+from typing import Callable, Dict, List, Optional, Tuple, TypedDict, Union
+
+from keras.engine.sequential import Sequential
+from numpy import int64, ndarray
+from tensorflow.python.ops.resource_variable_ops import ResourceVariable
+from tqdm import tqdm
+
 import utils
 import utils.model_utils
 
 from . import localisers
 
-from keras.engine.sequential import Sequential
-from numpy import ndarray
-from tensorflow.python.ops.resource_variable_ops import ResourceVariable
-from typing import Callable, List, Union
-from tqdm import tqdm
+
+class LayerFIGL(TypedDict):
+    costs: ndarray
+    shape: Tuple[int, ...]
 
 
-def extract_pareto(layer_fi_gl_pos, layer_fi_gl_neg):
+def extract_pareto(
+    layer_fi_gl_pos: Dict[int, LayerFIGL],
+    layer_fi_gl_neg: Dict[int, LayerFIGL],
+) -> Tuple[List[Tuple[int, Tuple[int64, int64]]], List[Tuple[List[int], ndarray]]]:
     shapes = {}
     costs_by_keys = []
     indicies_to_nodes = []
     layer_indicies = list(layer_fi_gl_neg.keys())
-    for layer_index in tqdm(layer_indicies):
+    for layer_index in layer_indicies:
         cost_pos = layer_fi_gl_pos[layer_index]["costs"]
         cost_neg = layer_fi_gl_neg[layer_index]["costs"]
         shapes[layer_index] = layer_fi_gl_pos[layer_index]["shape"]
@@ -74,7 +83,7 @@ def bidirectional_localisation(model: Sequential, pos: tuple, neg: tuple) -> Non
 
     for layer_index, layer in enumerate(model.layers):
         layer_type = utils.model_utils.get_layer_type(layer.name)
-        logging.debug("Layer type: {}".format(layer_type))
+        logging.debug(f"Layer {layer_index} type: {layer_type}")
 
         if len(layer.weights) == 0:
             logging.debug("Skipping layer with 0 weights: {}".format(layer.name))

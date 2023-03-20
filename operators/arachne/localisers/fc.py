@@ -1,15 +1,15 @@
-from .localiser import Localiser
-
-from tqdm import tqdm
-import numpy as np
 import logging
 
-from tensorflow.keras.models import Model
+import numpy as np
+import tensorflow as tf
 from keras.engine.sequential import Sequential
 from numpy import ndarray
-from tensorflow.python.ops.resource_variable_ops import ResourceVariable
 from sklearn.preprocessing import Normalizer
-import tensorflow as tf
+from tensorflow.keras.models import Model
+from tensorflow.python.ops.resource_variable_ops import ResourceVariable
+from tqdm import tqdm
+
+from .localiser import Localiser
 
 
 class FCLocaliser(Localiser):

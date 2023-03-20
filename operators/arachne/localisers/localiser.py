@@ -1,19 +1,16 @@
+import logging
 from abc import ABC, abstractmethod
 from typing import Callable, List, Union
 
 import numpy as np
 import tensorflow as tf
-
 from keras.engine.sequential import Sequential
-from numpy import ndarray
-from tensorflow.python.ops.resource_variable_ops import ResourceVariable
 from keras.layers import Normalization
-
+from numpy import ndarray
 from sklearn.preprocessing import Normalizer
-import logging
-from tqdm import tqdm
-
 from tensorflow.keras.models import Model
+from tensorflow.python.ops.resource_variable_ops import ResourceVariable
+from tqdm import tqdm
 
 
 class Localiser(ABC):
@@ -31,7 +28,7 @@ class Localiser(ABC):
         self.norm_scaler = norm_scaler
 
     def compute_gradient_to_output(
-        self, inputs: ndarray, on_weight=False, by_batch: bool = True
+        self, inputs: ndarray, on_weight: bool = False, by_batch: bool = True
     ) -> ndarray:
         norm_scaler = Normalizer(norm="l1")
 
@@ -127,9 +124,8 @@ class Localiser(ABC):
         )
 
         gradients = [[] for _ in range(len(targets))]
-        for chunk in tqdm(chunks):
+        for chunk in chunks:
             input_chunk = tf.convert_to_tensor(inputs[chunk])
-            # output chunk to one hot
             output_chunk = tf.one_hot(outputs[chunk], self.model.output.shape[-1])
 
             with tf.GradientTape() as tape:

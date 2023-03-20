@@ -1,6 +1,8 @@
-from .fc import FCLocaliser
-from .c2d import C2DLocaliser
 from typing import Type
+
+from .c2d import C2DLocaliser
+from .fc import FCLocaliser
+
 
 def get_localiser(name: str) -> Type[FCLocaliser]:
     if name == "FC":
