@@ -4,8 +4,8 @@ from keras.engine.sequential import Sequential
 
 
 class Model(ABC):
-    def __init__(self) -> None:
-        pass
+    def __init__(self, additional_config) -> None:
+        self.additional_config = additional_config
 
     @abstractmethod
     def train(self) -> None:

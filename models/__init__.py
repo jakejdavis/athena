@@ -1,4 +1,8 @@
+import logging
+import sys
 from typing import Type
+
+from .boston import BostonModel
 from .fashionmnist import FashionMNISTModel
 from .mnist_conv import MNISTConvModel
 
@@ -8,5 +12,8 @@ def get_model(name: str) -> Type[FashionMNISTModel]:
         return FashionMNISTModel
     if name.lower() == "mnist_conv":
         return MNISTConvModel
+    if name.lower() == "boston":
+        return BostonModel
     else:
-        raise NotImplementedError("Model for {} not implemented".format(name))
+        logging.error(f"Model {name} not found")
+        sys.exit(1)

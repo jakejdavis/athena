@@ -11,16 +11,15 @@ from .model import Model
 
 
 class FashionMNISTModel(Model):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, additional_config) -> None:
+        super().__init__(additional_config)
 
         (self.img_rows, self.img_cols) = (28, 28)
         self.input_shape = (self.img_rows * self.img_cols,)
+        self.num_classes = 10
 
     def generate_training_data(self):
         ((x_train, y_train), (x_test, y_test)) = fashion_mnist.load_data()
-
-        num_classes = 10
 
         x_train = x_train.reshape(x_train.shape[0], self.img_rows * self.img_cols)
         x_test = x_test.reshape(x_test.shape[0], self.img_rows * self.img_cols)
@@ -30,8 +29,8 @@ class FashionMNISTModel(Model):
         x_train /= 255
         x_test /= 255
 
-        y_train = keras.utils.to_categorical(y_train, num_classes)
-        y_test = keras.utils.to_categorical(y_test, num_classes)
+        y_train = keras.utils.to_categorical(y_train, self.num_classes)
+        y_test = keras.utils.to_categorical(y_test, self.num_classes)
 
         return (x_train, y_train), (x_test, y_test)
 
@@ -72,6 +71,7 @@ class FashionMNISTModel(Model):
         model: keras.engine.sequential.Sequential,
         n: int = 20,
         specific_output: int = None,
+        trivial: bool = False,
     ):
         logging.info("Generating %d positive and negative examples..." % n)
 
@@ -89,34 +89,46 @@ class FashionMNISTModel(Model):
         o_pos = []
         o_neg = []
 
-        while len(i_pos) < n or len(i_neg) < n:
-            random_index = np.random.randint(0, len(inputs))
-            if specific_output is not None:
-                if outputs[random_index] != specific_output:
-                    continue
-
-            data = inputs[random_index].reshape(1, img_rows * img_cols)
-            prediction = model.predict(data, verbose=0)[0]
-
-            if np.argmax(prediction) == outputs[random_index]:
-                if len(i_pos) < n:
-                    i_pos.append(inputs[random_index])
-                    o_pos.append(outputs[random_index])
-
-                    logging.debug(
-                        "Generated %d positive and %d negative examples"
-                        % (len(i_pos), len(i_neg))
-                    )
+        if specific_output is not None:
+            if trivial:
+                inputs = inputs[outputs != specific_output]
+                outputs = outputs[outputs != specific_output]
             else:
-                if len(i_neg) < n:
-                    i_neg.append(inputs[random_index])
-                    o_neg.append(outputs[random_index])
+                inputs = inputs[outputs == specific_output]
+                outputs = outputs[outputs == specific_output]
 
-                    logging.debug(
-                        "Generated %d positive and %d negative examples"
-                        % (len(i_pos), len(i_neg))
-                    )
+        batch_size = 128
+
+        while len(i_pos) < n or len(i_neg) < n:
+            random_indexes = np.random.randint(0, len(inputs), batch_size)
+
+            data = inputs[random_indexes]
+            predictions = model.predict(data, verbose=0)
+
+            for i, prediction in enumerate(predictions):
+                random_index = random_indexes[i]
+                if np.argmax(prediction) == outputs[random_index]:
+                    if len(i_pos) < n:
+                        i_pos.append(inputs[random_index])
+                        o_pos.append(outputs[random_index])
+
+                        logging.debug(
+                            "Generated %d positive and %d negative examples"
+                            % (len(i_pos), len(i_neg))
+                        )
+                else:
+                    if len(i_neg) < n:
+                        i_neg.append(inputs[random_index])
+                        o_neg.append(outputs[random_index])
+
+                        logging.debug(
+                            "Generated %d positive and %d negative examples"
+                            % (len(i_pos), len(i_neg))
+                        )
 
         logging.info("Done generating examples!")
+
+        o_pos = keras.utils.to_categorical(o_pos, self.num_classes)
+        o_neg = keras.utils.to_categorical(o_neg, self.num_classes)
 
         return (np.array(i_pos), np.array(o_pos)), (np.array(i_neg), np.array(o_neg))

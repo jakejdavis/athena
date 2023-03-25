@@ -10,9 +10,10 @@ from numpy import int64, ndarray
 from scipy.optimize import differential_evolution
 from scipy.optimize._optimize import OptimizeResult
 
-from .searcher import Searcher
+from utils.config import get_config_val
+from utils.model_utils import is_classification
 
-TRIVIAL_WEIGHT = 0.8
+from .searcher import Searcher
 
 
 class FitnessPlotter(Process):
@@ -62,34 +63,36 @@ class DE(Searcher):
         pos_neg: Tuple[Tuple[ndarray, ndarray], Tuple[ndarray, ndarray]],
         pos_neg_trivial: Tuple[Tuple[ndarray, ndarray], Tuple[ndarray, ndarray]],
         weights_to_target: List[Tuple[int, Tuple[int64, int64]]],
+        additional_config: dict = {},
     ) -> None:
         super().__init__(model)
 
         (self.i_neg, self.o_neg), (self.i_pos, self.o_pos) = pos_neg
-        self.o_neg = keras.utils.to_categorical(
-            self.o_neg, num_classes=model.output_shape[1]
-        )
-        self.o_pos = keras.utils.to_categorical(
-            self.o_pos, num_classes=model.output_shape[1]
-        )
 
-        self.neg_trivial, self.pos_trivial = pos_neg_trivial
-        if self.neg_trivial is not None:
-            self.i_neg_trivial, self.o_neg_trivial = (
-                self.neg_trivial[0],
-                keras.utils.to_categorical(
-                    self.neg_trivial[1], num_classes=model.output_shape[1]
-                ),
-            )
-            self.i_pos_trivial, self.o_pos_trivial = (
-                self.pos_trivial[0],
-                keras.utils.to_categorical(
-                    self.pos_trivial[1], num_classes=model.output_shape[1]
-                ),
-            )
+        if pos_neg_trivial[0] is not None:
+            (self.i_neg_trivial, self.o_neg_trivial), (
+                self.i_pos_trivial,
+                self.o_pos_trivial,
+            ) = pos_neg_trivial
 
         self.weights_to_target = weights_to_target
-        self.alpha = 0.5
+
+        self.additional_config = additional_config
+        self.variance = get_config_val(
+            config=self.additional_config, key="correct_variance", default=1, type=float
+        )
+        self.trivial_weighting = get_config_val(
+            config=self.additional_config,
+            key="operator.searcher.fitness.trivial_weighting",
+            default=0.8,
+            type=float,
+        )
+        self.alpha = get_config_val(
+            config=self.additional_config,
+            key="operator.searcher.fitness.alpha",
+            default=0.8,
+            type=float,
+        )
 
         initial_fitness = self.fitness([])
         logging.info(f"Starting with fitness {initial_fitness}")
@@ -123,25 +126,6 @@ class DE(Searcher):
     def search(self) -> OptimizeResult:
         # Set bounds to +/- 100% of the original weights
         bounds = []
-        """for i, (layer_index, (neuron_index, weight_index)) in enumerate(
-            self.weights_to_target
-        ):
-            lower = (
-                self.model.layers[layer_index].get_weights()[0][neuron_index][
-                    weight_index
-                ]
-                * -100
-            )
-            higher = (
-                self.model.layers[layer_index].get_weights()[0][neuron_index][
-                    weight_index
-                ]
-                * 100
-            )
-
-            if higher < lower:
-                higher, lower = lower, higher
-            bounds.append((lower, higher))"""
 
         for i, (layer_index, (neuron_index, weight_index)) in enumerate(
             self.weights_to_target
@@ -191,15 +175,18 @@ class DE(Searcher):
         _score = 0
 
         for i, prediction in enumerate(predictions):
-            if np.argmax(prediction) == np.argmax(outputs[i]):
+            prediction_correct = (
+                is_classification(model)
+                and np.argmax(prediction) == np.argmax(outputs[i])
+            ) or (
+                not is_classification(model)
+                and abs(prediction - outputs[i]) < self.variance
+            )
+
+            if prediction_correct:
                 _score += 1
             else:
-                # TODO: change to support other loss functions
-                # Categorical cross entropy
-                loss = keras.losses.categorical_crossentropy(
-                    outputs[i], prediction, from_logits=False
-                )
-                _score += 1 / (1 + loss)
+                _score += 1 / (1 + model.loss(outputs[i], prediction))
 
         return _score
 
@@ -216,7 +203,7 @@ class DE(Searcher):
         total_fitness = pos_fitness + self.alpha * neg_fitness
 
         # Maxmimise fitness of outputs not being targetted
-        if self.neg_trivial is not None:
+        if hasattr(self, "i_neg_trivial"):
             neg_trivial_fitness = self.score(
                 self.new_model, (self.i_neg_trivial, self.o_neg_trivial)
             )
@@ -226,7 +213,7 @@ class DE(Searcher):
 
             total_fitness += (
                 -1
-                * TRIVIAL_WEIGHT
+                * self.trivial_weighting
                 * (neg_trivial_fitness + self.alpha * pos_trivial_fitness)
             )
 

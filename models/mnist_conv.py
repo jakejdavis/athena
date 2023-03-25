@@ -12,8 +12,8 @@ from .model import Model
 
 
 class MNISTConvModel(Model):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, additional_config) -> None:
+        super().__init__(additional_config)
 
         (self.img_rows, self.img_cols) = (28, 28)
         self.input_shape = (self.img_rows * self.img_cols,)
@@ -140,5 +140,8 @@ class MNISTConvModel(Model):
                         )
 
         logging.info("Done generating examples!")
+
+        o_pos = keras.utils.to_categorical(o_pos, self.num_classes)
+        o_neg = keras.utils.to_categorical(o_neg, self.num_classes)
 
         return (np.array(i_pos), np.array(o_pos)), (np.array(i_neg), np.array(o_neg))

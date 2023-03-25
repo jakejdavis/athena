@@ -2,10 +2,12 @@ import importlib
 import logging
 import os
 import pickle
+import sys
 from typing import cast
 
 import click
 import keras
+import yaml
 
 import models
 import operators.arachne_operators
@@ -33,52 +35,6 @@ def cli():
 
 @cli.command(cls=BasicCommand)
 @click.argument("subject_name")
-@click.argument("test_set")
-@click.option(
-    "-m",
-    "--mutants_dir",
-    default="mutants",
-    help="Directory to load/save mutated models",
-)
-@click.option(
-    "-r",
-    "--metrics_dir",
-    default="metrics",
-    help="Directory to save the metrics of the mutation tests",
-)
-def run(subject_name, test_set, mutants_dir, metrics_dir, verbose):
-    set_logger_level(verbose)
-    logging.info(
-        "Running mutation testing on subject %s with test set %s",
-        subject_name,
-        test_set,
-    )
-    logging.info("Mutants directory: %s", mutants_dir)
-    logging.info("Metrics directory: %s", metrics_dir)
-
-    if not os.path.exists(
-        os.path.join(TRAINED_MODELS_DIR, subject_name + "_trained.h5")
-    ):
-        logging.info(
-            f"Trained model for subject {subject_name} not found. Training now..."
-        )
-        subject_train = importlib.import_module(f"test_models.{subject_name}_train")
-        subject_train.main(subject_name)
-    logging.info("Loading trained model")
-    model = cast(
-        keras.Sequential,
-        keras.models.load_model(
-            os.path.join(TRAINED_MODELS_DIR, subject_name + "_trained.h5")
-        ),
-    )
-    pos, neg = utils.generate_inputs_outputs(subject_name, model)
-
-    patched_model = operators.arachne_operators.operator_arachne(model, pos, neg)
-    patched_model.save(os.path.join(TRAINED_MODELS_DIR, subject_name + "_patched.h5"))
-
-
-@cli.command(cls=BasicCommand)
-@click.argument("subject_name")
 @click.option(
     "-t",
     "--trained-models-dir",
@@ -92,17 +48,36 @@ def run(subject_name, test_set, mutants_dir, metrics_dir, verbose):
     help="Directory to load/save mutated models",
 )
 @click.option(
-    "-s",
+    "-p",
     "--specific-output",
     default=None,
     help="Specific output to generate mutants for",
 )
-def generate(subject_name, trained_models_dir, mutants_dir, specific_output, verbose):
+@click.option(
+    "-o",
+    "--additional-config",
+    default="config/arachne/arachne_multiprocessing.yaml",
+    help="Operator configuration file",
+)
+def generate(
+    subject_name,
+    trained_models_dir,
+    mutants_dir,
+    specific_output,
+    additional_config,
+    verbose,
+):
     set_logger_level(verbose)
     logging.info(f"Trained models directory: {trained_models_dir}")
     logging.info(f"Mutants directory: {mutants_dir}")
 
-    model_utils = models.get_model(subject_name)()
+    with open(additional_config, "r") as f:
+        additional_config = yaml.safe_load(f)
+    logging.info(f"Additional config: {additional_config}")
+
+    # Load/train subject
+
+    model_utils = models.get_model(subject_name)(additional_config)
 
     trained_model_path = os.path.join(trained_models_dir, subject_name + "_trained.h5")
     if not os.path.exists(trained_model_path):
@@ -114,6 +89,8 @@ def generate(subject_name, trained_models_dir, mutants_dir, specific_output, ver
     else:
         logging.info(f"Loading trained model from {trained_model_path}")
         model = keras.models.load_model(trained_model_path)
+
+    # Generate inputs and outputs for patching
 
     if not os.path.exists(CACHE_DIR):
         os.makedirs(CACHE_DIR)
@@ -165,10 +142,28 @@ def generate(subject_name, trained_models_dir, mutants_dir, specific_output, ver
         logging.info(f"Using cached inputs and outputs from {input_outputs_path}")
         pos, neg = pickle.load(open(input_outputs_path, "rb"))
 
-    logging.info("Generating mutant")
-    patched_model = operators.arachne_operators.operator_arachne(
-        model, pos, neg, pos_trivial=pos_trivial, neg_trivial=neg_trivial
+    # Generate mutant from operator
+
+    operator_name = utils.config.get_config_val(
+        additional_config, "operator.name", None
     )
+    if operator_name is None:
+        logging.error("Operator name not found in config")
+        sys.exit(1)
+
+    operator = operators.get_operator(operator_name)
+
+    logging.info(f"Generating mutant using {operator_name} operator")
+    patched_model = operator(
+        model,
+        pos,
+        neg,
+        pos_trivial=pos_trivial,
+        neg_trivial=neg_trivial,
+        additional_config=additional_config,
+    )
+
+    # Save mutant
 
     if not os.path.exists(mutants_dir):
         os.makedirs(mutants_dir)

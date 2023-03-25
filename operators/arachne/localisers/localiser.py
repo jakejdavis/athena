@@ -1,4 +1,5 @@
 import logging
+import sys
 from abc import ABC, abstractmethod
 from typing import Callable, List, Union
 
@@ -6,6 +7,7 @@ import numpy as np
 import tensorflow as tf
 from keras.engine.sequential import Sequential
 from keras.layers import Normalization
+from keras.losses import binary_crossentropy, categorical_crossentropy, mae, mse
 from numpy import ndarray
 from sklearn.preprocessing import Normalizer
 from tensorflow.keras.models import Model
@@ -102,7 +104,6 @@ class Localiser(ABC):
                 shape=list(self.model.output.shape)[1:], name="labels"
             )
 
-        # since this might cause OOM error, divide them
         num = inputs.shape[0]
         if by_batch:
             batch_size = 64
@@ -113,10 +114,21 @@ class Localiser(ABC):
         else:
             chunks = [np.arange(num)]
 
-        if loss_func == "cross_entropy":
+        if self.model.loss == categorical_crossentropy:
             loss_tensor = tf.nn.softmax_cross_entropy_with_logits(
                 labels=y_tensor, logits=self.model.output, name="per_label_loss"
             )
+        elif self.model.loss == binary_crossentropy:
+            loss_tensor = tf.nn.sigmoid_cross_entropy_with_logits(
+                labels=y_tensor, logits=self.model.output, name="per_label_loss"
+            )
+        elif self.model.loss == mse:
+            loss_tensor = tf.keras.losses.MSE(y_tensor, self.model.output)
+        elif self.model.loss == mae:
+            loss_tensor = tf.keras.losses.MAE(y_tensor, self.model.output)
+        else:
+            logging.error("Loss function not implemented")
+            sys.exit(1)
 
         new_model = Model(
             inputs=[self.model.input, y_tensor],
@@ -126,7 +138,7 @@ class Localiser(ABC):
         gradients = [[] for _ in range(len(targets))]
         for chunk in chunks:
             input_chunk = tf.convert_to_tensor(inputs[chunk])
-            output_chunk = tf.one_hot(outputs[chunk], self.model.output.shape[-1])
+            output_chunk = tf.convert_to_tensor(outputs[chunk])
 
             with tf.GradientTape() as tape:
                 tape.watch(input_chunk)
@@ -141,7 +153,7 @@ class Localiser(ABC):
         for i, gradients_p_chunk in enumerate(gradients):
             gradients[i] = np.abs(np.sum(np.asarray(gradients_p_chunk), axis=0))
 
-        logging.debug("gradients shape: {}".format(np.array(gradients).shape))
+        logging.debug("Gradients shape: {}".format(np.array(gradients).shape))
 
         return np.array(gradients[0]) if len(gradients) == 1 else np.array(gradients)
 
