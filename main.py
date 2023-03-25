@@ -1,4 +1,5 @@
 import importlib
+import json
 import logging
 import os
 import pickle
@@ -7,7 +8,6 @@ from typing import cast
 
 import click
 import keras
-import yaml
 
 import models
 import operators.arachne_operators
@@ -56,7 +56,7 @@ def cli():
 @click.option(
     "-o",
     "--additional-config",
-    default="config/arachne/arachne_multiprocessing.yaml",
+    # default="config/arachne/arachne_multiprocessing.yaml",
     help="Operator configuration file",
 )
 def generate(
@@ -71,8 +71,17 @@ def generate(
     logging.info(f"Trained models directory: {trained_models_dir}")
     logging.info(f"Mutants directory: {mutants_dir}")
 
-    with open(additional_config, "r") as f:
-        additional_config = yaml.safe_load(f)
+    if additional_config is not None:
+        if os.path.exists(additional_config):
+            with open(additional_config, "r") as f:
+                additional_config = json.load(f)
+        else:
+            logging.debug(
+                f"Additional config file {additional_config} not found, trying to load as json"
+            )
+            additional_config = json.loads(additional_config)
+    else:
+        additional_config = {}
     logging.info(f"Additional config: {additional_config}")
 
     # Load/train subject
@@ -145,7 +154,7 @@ def generate(
     # Generate mutant from operator
 
     operator_name = utils.config.get_config_val(
-        additional_config, "operator.name", None
+        additional_config, "operator.name", "arachne"
     )
     if operator_name is None:
         logging.error("Operator name not found in config")
