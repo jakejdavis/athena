@@ -72,7 +72,8 @@ def bidirectional_localisation(model: Sequential, pos: tuple, neg: tuple) -> Non
     i_pos: a set of inputs that do not reveal the fault
     """
 
-    assert isinstance(model.loss, Callable), "Loss function is not callable"
+    if not isinstance(model.loss, Callable):
+        logging.warning("Loss function is not callable")
 
     logging.debug("Input shape: {}".format(neg[0].shape))
 

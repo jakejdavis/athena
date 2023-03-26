@@ -33,7 +33,7 @@ class FCLocaliser(Localiser):
         )
 
         inputs, _ = inputs_outputs
-        if self.layer_index == 0 or self.layer_index - 1 == 0:
+        if self.layer_index == 0:
             prev_output = inputs
         else:
             target_model = Model(
