@@ -23,12 +23,16 @@ def operator_arachne(
     assert len(neg[0]) >= len(pos[0]), "More positive examples than negative examples"
 
     localisation_method = get_config_val(
-        additional_config, "operator.searcher.localisation", "bidirectional"
+        additional_config, "operator.localisation", "bidirectional"
     )
     if localisation_method == "bidirectional":
         logging.info(f"Localising patch using bidirectional localisation")
-        pareto, _ = localisation.bidirectional_localisation(model, pos, neg)
-        logging.info("Patch localised: %s" % pareto)
+        patch, _ = localisation.bidirectional_localisation(model, pos, neg)
+        logging.info("Patch localised: %s" % patch)
+    elif localisation_method == "random":
+        logging.info(f"Localising patch using random localisation")
+        patch = localisation.random_localisation(model, pos, neg)
+        logging.info("Patch localised: %s" % patch)
     else:
         logging.error(f"Localisation method {localisation_method} not implemented")
 
@@ -45,17 +49,17 @@ def operator_arachne(
                 model,
                 (pos, neg),
                 (pos_trivial, neg_trivial),
-                pareto,
+                patch,
                 additional_config,
                 workers,
             )
         else:
             patch_searcher = searchers.DE(
-                model, (pos, neg), (pos_trivial, neg_trivial), pareto, additional_config
+                model, (pos, neg), (pos_trivial, neg_trivial), patch, additional_config
             )
 
-    patch = patch_searcher.search().x
-    patched_model = apply_patch(model, patch, pareto)
-    logging.info("Patch generated: %s" % patch)
+    patched_weights = patch_searcher.search().x
+    patched_model = apply_patch(model, patched_weights, patch)
+    logging.info("Patch generated: %s" % patched_weights)
 
     return patched_model

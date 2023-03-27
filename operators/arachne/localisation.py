@@ -109,3 +109,41 @@ def bidirectional_localisation(model: Sequential, pos: tuple, neg: tuple) -> Non
         fi_gl_pos[layer_index] = layer_fi_gl_pos
 
     return extract_pareto(fi_gl_pos, fi_gl_neg)
+
+
+def random_localisation(model: Sequential, pos: tuple, neg: tuple) -> None:
+    """
+    Returns a random list of weights, [layer_index, (i, j)]
+    M: a keras model
+    i_neg: a set of inputs that reveal the fault
+    i_pos: a set of inputs that do not reveal the fault
+    """
+
+    if not isinstance(model.loss, Callable):
+        logging.warning("Loss function is not callable")
+
+    logging.debug("Input shape: {}".format(neg[0].shape))
+
+    N = 10
+
+    nodes = []
+
+    while len(nodes) < N:
+        random_layer = np.random.randint(0, len(model.layers))
+
+        layer = model.layers[random_layer]
+        layer_type = utils.model_utils.get_layer_type(layer.name)
+
+        if layer_type != "FC":
+            continue
+
+        if len(layer.weights) == 0:
+            continue
+
+        layer_weights = layer.weights[0]
+
+        random_indexes = np.random.randint(0, layer_weights.shape[0], 2)
+
+        nodes.append([random_layer, tuple(random_indexes)])
+
+    return nodes
