@@ -8,9 +8,11 @@ from typing import cast
 
 import click
 import keras
+import numpy as np
 
 import models
 import operators.arachne_operators
+import test_sets
 import utils
 from logger import set_logger_level
 
@@ -33,41 +35,13 @@ def cli():
     pass
 
 
-@cli.command(cls=BasicCommand)
-@click.argument("subject_name")
-@click.option(
-    "-t",
-    "--trained-models-dir",
-    default="trained_models",
-    help="Directory to load/save trained models",
-)
-@click.option(
-    "-m",
-    "--mutants_dir",
-    default="mutants",
-    help="Directory to load/save mutated models",
-)
-@click.option(
-    "-p",
-    "--specific-output",
-    default=None,
-    help="Specific output to generate mutants for",
-)
-@click.option(
-    "-o",
-    "--additional-config",
-    # default="config/arachne/arachne_multiprocessing.yaml",
-    help="Operator configuration file",
-)
-def generate(
+def _generate(
     subject_name,
     trained_models_dir,
     mutants_dir,
     specific_output,
     additional_config,
-    verbose,
 ):
-    set_logger_level(verbose)
     logging.info(f"Trained models directory: {trained_models_dir}")
     logging.info(f"Mutants directory: {mutants_dir}")
 
@@ -184,6 +158,153 @@ def generate(
         )
     logging.info(f"Saving mutant to {patched_model_path}")
     patched_model.save(patched_model_path)
+
+    return model, patched_model
+
+
+@cli.command(cls=BasicCommand)
+@click.argument("subject_name")
+@click.argument("test_set")
+@click.option(
+    "-t",
+    "--trained-models-dir",
+    default="trained_models",
+    help="Directory to load/save trained models",
+)
+@click.option(
+    "-m",
+    "--mutants_dir",
+    default="mutants",
+    help="Directory to load/save mutated models",
+)
+@click.option(
+    "-p",
+    "--specific-output",
+    default=None,
+    help="Specific output to generate mutants for",
+)
+@click.option(
+    "-o",
+    "--additional-config",
+    help="Operator configuration file",
+)
+def run(
+    subject_name,
+    test_set,
+    trained_models_dir,
+    mutants_dir,
+    specific_output,
+    additional_config,
+    verbose,
+):
+    set_logger_level(verbose)
+
+    model_path = os.path.join(trained_models_dir, subject_name + "_trained.h5")
+    patched_model_path = os.path.join(
+        mutants_dir,
+        subject_name
+        + "_patched"
+        + ("" if specific_output is None else "_" + specific_output)
+        + ".h5",
+    )
+    if os.path.exists(patched_model_path) and os.path.exists(model_path):
+        logging.info(f"Loading trained model from {model_path}")
+        model = keras.models.load_model(model_path)
+
+        logging.info(f"Loading patched model from {patched_model_path}")
+        patched_model = keras.models.load_model(patched_model_path)
+    else:
+        logging.info("Generating patched model")
+        model, patched_model = _generate(
+            subject_name,
+            trained_models_dir,
+            mutants_dir,
+            specific_output,
+            additional_config,
+        )
+
+    test_set = test_sets.get_test_set(test_set)(additional_config)
+    model_utils = models.get_model(subject_name)(additional_config)
+
+    specific_output_int = None
+    if specific_output is not None:
+        specific_output_int = int(specific_output)
+
+    inputs, outputs = model_utils.generate_evaluation_data(
+        specific_output=specific_output_int, trivial=False
+    )
+
+    trivial_inputs, trivial_outputs = model_utils.generate_evaluation_data(
+        specific_output=specific_output_int, trivial=True
+    )
+
+    tests = {
+        "Non-mutated model for specific output": {
+            "value": test_set.run(model, inputs, outputs),
+            "pass": lambda x: test_set.test_passed(x),
+        },
+        "Non-mutated model excluding specific output": {
+            "value": test_set.run(model, trivial_inputs, trivial_outputs),
+            "pass": lambda x: test_set.test_passed(x),
+        },
+        "Mutated model for specific output": {
+            "value": test_set.run(patched_model, inputs, outputs),
+            "pass": lambda x: not test_set.test_passed(x),
+        },
+        "Mutated model excluding specific output": {
+            "value": test_set.run(patched_model, trivial_inputs, trivial_outputs),
+            "pass": lambda x: test_set.test_passed(x),
+        },
+    }
+
+    for test_name, test in tests.items():
+        if test["pass"](test["value"]):
+            print(f"✓ {test_name} has accuracy {test['value']}")
+        else:
+            print(f"✗ {test_name} has accuracy {test['value']}")
+
+
+@cli.command(cls=BasicCommand)
+@click.argument("subject_name")
+@click.option(
+    "-t",
+    "--trained-models-dir",
+    default="trained_models",
+    help="Directory to load/save trained models",
+)
+@click.option(
+    "-m",
+    "--mutants_dir",
+    default="mutants",
+    help="Directory to load/save mutated models",
+)
+@click.option(
+    "-p",
+    "--specific-output",
+    default=None,
+    help="Specific output to generate mutants for",
+)
+@click.option(
+    "-o",
+    "--additional-config",
+    help="Operator configuration file",
+)
+def generate(
+    subject_name,
+    trained_models_dir,
+    mutants_dir,
+    specific_output,
+    additional_config,
+    verbose,
+):
+    set_logger_level(verbose)
+    _generate(
+        subject_name,
+        trained_models_dir,
+        mutants_dir,
+        specific_output,
+        additional_config,
+    )
 
 
 @cli.command(cls=BasicCommand)
