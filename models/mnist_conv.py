@@ -83,7 +83,7 @@ class MNISTConvModel(Model):
 
     def generate_inputs_outputs(
         self,
-        model: keras.engine.sequential.Sequential,
+        model: Sequential,
         n: int = 20,
         specific_output: int = None,
         trivial: bool = False,
@@ -160,6 +160,10 @@ class MNISTConvModel(Model):
             else:
                 x_test = x_test[y_test == specific_output]
                 y_test = y_test[y_test == specific_output]
+
+        x_test = x_test.reshape(x_test.shape[0], self.img_rows, self.img_cols)
+        x_test = x_test.astype("float32")
+        x_test /= 255
 
         y_test = keras.utils.to_categorical(y_test, self.num_classes)
 

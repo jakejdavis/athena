@@ -1,0 +1,18 @@
+{
+    "operator": {
+      "name": "athena",
+      "localisation": "random",
+      "searcher": {
+        "name": "de",
+        "workers": -1,
+        "fitness": {
+          "trivial_weighting": 0.8,
+          "alpha": 0.8
+        },
+        "maxiter": 100,
+        "popsize": 200,
+        "tol": 0.0001,
+        "bounds_dist": 10
+      }
+    }
+  }

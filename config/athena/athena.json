@@ -1,6 +1,6 @@
 {
     "operator": {
-      "name": "arachne",
+      "name": "athena",
       "localisation": "bidirectional",
       "searcher": {
         "name": "de",

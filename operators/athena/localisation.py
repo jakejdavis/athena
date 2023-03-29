@@ -1,18 +1,10 @@
 import logging
-import sys
+from typing import Callable, Dict, List, Tuple, TypedDict
 
 import numpy as np
-import tensorflow as tf
-from keras.engine.compile_utils import LossesContainer
-from sklearn.preprocessing import Normalizer
-
-sys.path.append("../")
-from typing import Callable, Dict, List, Optional, Tuple, TypedDict, Union
-
 from keras.engine.sequential import Sequential
 from numpy import int64, ndarray
-from tensorflow.python.ops.resource_variable_ops import ResourceVariable
-from tqdm import tqdm
+from sklearn.preprocessing import Normalizer
 
 import utils
 import utils.model_utils
@@ -29,6 +21,15 @@ def extract_pareto(
     layer_fi_gl_pos: Dict[int, LayerFIGL],
     layer_fi_gl_neg: Dict[int, LayerFIGL],
 ) -> Tuple[List[Tuple[int, Tuple[int64, int64]]], List[Tuple[List[int], ndarray]]]:
+    """
+    Extracts the pareto front from forward impacts and gradient losses.
+
+    This function is heavily based on https://github.com/coinse/arachne/blob/cc1523ce4a9ad6dbbecdf87e1f5712a72e48a393/arachne/run_localise.py#L790
+
+    :param layer_fi_gl_pos: forward impacts and gradient losses for inputs correctly classified
+    :param layer_fi_gl_neg: forward impacts and gradient losses for inputs incorrectly classified
+    """
+
     shapes = {}
     costs_by_keys = []
     indicies_to_nodes = []
@@ -67,9 +68,11 @@ def extract_pareto(
 
 def bidirectional_localisation(model: Sequential, pos: tuple, neg: tuple) -> None:
     """
-    M: a keras model
-    i_neg: a set of inputs that reveal the fault
-    i_pos: a set of inputs that do not reveal the fault
+    Uses the bidirectional algorithm for patch localisation (see https://arxiv.org/abs/1912.12463).
+
+    :param model: a keras model
+    :param pos: a set of inputs that do not reveal the fault
+    :param neg: a set of inputs that reveal the fault
     """
 
     if not isinstance(model.loss, Callable):
@@ -86,6 +89,7 @@ def bidirectional_localisation(model: Sequential, pos: tuple, neg: tuple) -> Non
         layer_type = utils.model_utils.get_layer_type(layer.name)
         logging.debug(f"Layer {layer_index} type: {layer_type}")
 
+        # Skip layers with no weights (Dropout, Flatten, etc.)
         if len(layer.weights) == 0:
             logging.debug("Skipping layer with 0 weights: {}".format(layer.name))
             continue
@@ -93,11 +97,7 @@ def bidirectional_localisation(model: Sequential, pos: tuple, neg: tuple) -> Non
         layer_weights = layer.weights[0]
         logging.debug("Layer weights (kernel) shape: {}".format(layer_weights.shape))
 
-        # TODO: add other layer types
-        if layer_type == "C2D":
-            logging.debug("Skipping layer C2D (NI): {}".format(layer_type))
-            continue
-
+        # Use the localiser for the layer type
         localiser = localisers.get_localiser(layer_type)(
             model, layer_index, layer_weights, norm_scaler
         )
@@ -114,9 +114,10 @@ def bidirectional_localisation(model: Sequential, pos: tuple, neg: tuple) -> Non
 def random_localisation(model: Sequential, pos: tuple, neg: tuple) -> None:
     """
     Returns a random list of weights, [layer_index, (i, j)]
-    M: a keras model
-    i_neg: a set of inputs that reveal the fault
-    i_pos: a set of inputs that do not reveal the fault
+
+    :param model: a keras model
+    :param pos: a set of inputs that do not reveal the fault
+    :param neg: a set of inputs that reveal the fault
     """
 
     if not isinstance(model.loss, Callable):

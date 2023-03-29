@@ -68,7 +68,7 @@ class FashionMNISTModel(Model):
 
     def generate_inputs_outputs(
         self,
-        model: keras.engine.sequential.Sequential,
+        model: Sequential,
         n: int = 20,
         specific_output: int = None,
         trivial: bool = False,
@@ -132,3 +132,26 @@ class FashionMNISTModel(Model):
         o_neg = keras.utils.to_categorical(o_neg, self.num_classes)
 
         return (np.array(i_pos), np.array(o_pos)), (np.array(i_neg), np.array(o_neg))
+
+    def generate_evaluation_data(
+        self, specific_output: int = None, trivial: bool = False
+    ):
+        logging.info("Generating evaluation data...")
+
+        (_, _), (x_test, y_test) = keras.datasets.fashion_mnist.load_data()
+
+        if specific_output is not None:
+            if trivial:
+                x_test = x_test[y_test != specific_output]
+                y_test = y_test[y_test != specific_output]
+            else:
+                x_test = x_test[y_test == specific_output]
+                y_test = y_test[y_test == specific_output]
+
+        x_test = x_test.reshape(x_test.shape[0], self.img_rows * self.img_cols)
+        x_test = x_test.astype("float32")
+        x_test /= 255
+
+        y_test = keras.utils.to_categorical(y_test, self.num_classes)
+
+        return x_test, y_test

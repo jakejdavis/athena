@@ -13,6 +13,10 @@ from .localiser import Localiser
 
 
 class FCLocaliser(Localiser):
+    """
+    Localiser for Dense layers.
+    """
+
     def __init__(
         self,
         model: Sequential,
@@ -22,7 +26,16 @@ class FCLocaliser(Localiser):
     ) -> None:
         super().__init__(model, layer_index, layer_weights, norm_scaler)
 
-    def compute_fi_gl(self, inputs_outputs: ndarray) -> int:
+    def compute_fi_gl(self, inputs_outputs: ndarray):
+        """
+        Calculates the forward impact and gradient loss for a Dense layer.
+
+        This function is based on https://github.com/coinse/arachne/blob/cc1523ce4a9ad6dbbecdf87e1f5712a72e48a393/arachne/run_localise.py#L325
+
+        :param inputs_outputs: inputs and outputs to use for calculating FL, GL
+        :return: forward impact and gradient loss
+        """
+
         logging.info("Calculating forward impact for FC layer")
         logging.info(f"- Layer index: {self.layer_index}")
         logging.info(
@@ -77,4 +90,5 @@ class FCLocaliser(Localiser):
         grad = self.compute_gradient_to_loss(inputs_outputs)
 
         pairs = np.asarray([grad.flatten(), forward_impacts.flatten()]).T
+
         return {"shape": forward_impacts.shape, "costs": pairs}

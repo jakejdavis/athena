@@ -167,12 +167,12 @@ class DE(Searcher):
 
     def score(
         self, model: Sequential, inputs_outputs: Tuple[ndarray, ndarray]
-    ) -> Union[ndarray, int]:
+    ) -> float:
         inputs, outputs = inputs_outputs
 
         predictions = model(inputs)
 
-        _score = 0
+        _score = 0.0
 
         for i, prediction in enumerate(predictions):
             prediction_correct = (
@@ -184,9 +184,9 @@ class DE(Searcher):
             )
 
             if prediction_correct:
-                _score += 1
+                _score += 1.0
             else:
-                _score += 1 / (1 + model.loss(outputs[i], prediction))
+                _score += 1.0 / (1.0 + model.loss(outputs[i], prediction))
 
         return _score
 

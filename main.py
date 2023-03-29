@@ -1,17 +1,14 @@
-import importlib
 import json
 import logging
 import os
 import pickle
 import sys
-from typing import cast
 
 import click
 import keras
-import numpy as np
 
 import models
-import operators.arachne_operators
+import operators
 import test_sets
 import utils
 from logger import set_logger_level
@@ -128,22 +125,20 @@ def _generate(
     # Generate mutant from operator
 
     operator_name = utils.config.get_config_val(
-        additional_config, "operator.name", "arachne"
+        additional_config, "operator.name", "athena"
     )
     if operator_name is None:
         logging.error("Operator name not found in config")
         sys.exit(1)
 
-    operator = operators.get_operator(operator_name)
+    operator = operators.get_operator(operator_name)(model, additional_config)
 
     logging.info(f"Generating mutant using {operator_name} operator")
     patched_model = operator(
-        model,
         pos,
         neg,
         pos_trivial=pos_trivial,
         neg_trivial=neg_trivial,
-        additional_config=additional_config,
     )
 
     # Save mutant
@@ -169,24 +164,24 @@ def _generate(
     "-t",
     "--trained-models-dir",
     default="trained_models",
-    help="Directory to load/save trained models",
+    help="Directory to load/save trained models.",
 )
 @click.option(
     "-m",
     "--mutants_dir",
     default="mutants",
-    help="Directory to load/save mutated models",
+    help="Directory to load/save mutated models.",
 )
 @click.option(
     "-p",
     "--specific-output",
     default=None,
-    help="Specific output to generate mutants for",
+    help="Specific output to generate mutants for.",
 )
 @click.option(
     "-o",
     "--additional-config",
-    help="Operator configuration file",
+    help="Path to additional configuration json file.",
 )
 def run(
     subject_name,
@@ -197,6 +192,7 @@ def run(
     additional_config,
     verbose,
 ):
+    """Runs example test set on subject."""
     set_logger_level(verbose)
 
     model_path = os.path.join(trained_models_dir, subject_name + "_trained.h5")
@@ -259,9 +255,9 @@ def run(
 
     for test_name, test in tests.items():
         if test["pass"](test["value"]):
-            print(f"✓ {test_name} has accuracy {test['value']}")
+            logging.info(f"✓ {test_name} has accuracy {test['value']}")
         else:
-            print(f"✗ {test_name} has accuracy {test['value']}")
+            logging.info(f"✗ {test_name} has accuracy {test['value']}")
 
 
 @cli.command(cls=BasicCommand)
@@ -270,24 +266,24 @@ def run(
     "-t",
     "--trained-models-dir",
     default="trained_models",
-    help="Directory to load/save trained models",
+    help="Directory to load/save trained models.",
 )
 @click.option(
     "-m",
     "--mutants_dir",
     default="mutants",
-    help="Directory to load/save mutated models",
+    help="Directory to save mutated models.",
 )
 @click.option(
     "-p",
     "--specific-output",
     default=None,
-    help="Specific output to generate mutants for",
+    help="Specific output to generate mutants for.",
 )
 @click.option(
     "-o",
     "--additional-config",
-    help="Operator configuration file",
+    help="Path to additional configuration json file.",
 )
 def generate(
     subject_name,
@@ -297,6 +293,7 @@ def generate(
     additional_config,
     verbose,
 ):
+    """Generates mutant for subject."""
     set_logger_level(verbose)
     _generate(
         subject_name,
@@ -307,22 +304,5 @@ def generate(
     )
 
 
-@cli.command(cls=BasicCommand)
-@click.argument("approach1_mutants_dir")
-@click.argument("approach2_mutants_dir")
-@click.option(
-    "-r",
-    "--metrics_dir",
-    default="metrics",
-    help="Directory to save the metrics of the mutation tests",
-)
-def compare(approach1_mutants_dir, approach2_mutants_dir, metrics_dir, verbose):
-    set_logger_level(verbose)
-    logging.info(
-        "Comparing mutants from %s and %s", approach1_mutants_dir, approach2_mutants_dir
-    )
-    logging.info("Metrics directory: %s", metrics_dir)
-
-
 if __name__ == "__main__":
-    cli()
+    cli(prog_name="athena")

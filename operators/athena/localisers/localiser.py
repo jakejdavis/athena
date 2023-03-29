@@ -1,7 +1,6 @@
 import logging
 import sys
 from abc import ABC, abstractmethod
-from typing import Callable, List, Union
 
 import numpy as np
 import tensorflow as tf
@@ -16,6 +15,10 @@ from tqdm import tqdm
 
 
 class Localiser(ABC):
+    """
+    Abstract class for localisers.
+    """
+
     def __init__(
         self,
         model: Sequential,
@@ -32,6 +35,16 @@ class Localiser(ABC):
     def compute_gradient_to_output(
         self, inputs: ndarray, on_weight: bool = False, by_batch: bool = True
     ) -> ndarray:
+        """
+        Calculates the gradient of the output of a layer with respect to the input.
+
+        This function is based on https://github.com/coinse/arachne/blob/cc1523ce4a9ad6dbbecdf87e1f5712a72e48a393/arachne/run_localise.py#LL60
+
+        :param inputs: inputs to use for calculating the gradient
+        :param on_weight: whether to calculate the gradient on the weights or the output
+        :param by_batch: whether to calculate the gradient by batch
+        :return: gradient of the output of a layer with respect to the input
+        """
         norm_scaler = Normalizer(norm="l1")
 
         input_dim = inputs.shape[0]
@@ -86,9 +99,17 @@ class Localiser(ABC):
     def compute_gradient_to_loss(
         self,
         inputs_outputs: ndarray,
-        loss_func: str = "cross_entropy",
         by_batch: bool = True,
     ) -> ndarray:
+        """
+        Calculates the gradient of the loss with respect to the input.
+
+        This function is based on https://github.com/coinse/arachne/blob/cc1523ce4a9ad6dbbecdf87e1f5712a72e48a393/arachne/run_localise.py#L127
+
+        :param inputs_outputs: inputs and outputs to use for calculating the gradient
+        :param by_batch: whether to calculate the gradient by batch
+        :return: gradient of the loss with respect to the input
+        """
 
         inputs, outputs = inputs_outputs
         outputs = outputs.astype(np.int32)

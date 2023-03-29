@@ -9,6 +9,7 @@ from numpy import int64, ndarray
 from scipy.optimize import differential_evolution
 
 from utils.config import get_config_val
+from utils.model_utils import is_classification
 
 from .searcher import Searcher
 
@@ -16,23 +17,23 @@ Nfeval = 1
 
 
 def score(
-    model: Sequential, inputs_outputs: Tuple[ndarray, ndarray]
-) -> Union[ndarray, int]:
+    model: Sequential, inputs_outputs: Tuple[ndarray, ndarray], variance=None
+) -> float:
     inputs, outputs = inputs_outputs
 
     predictions = model(inputs)
 
-    _score = 0
+    _score = 0.0
 
     for i, prediction in enumerate(predictions):
-        if np.argmax(prediction) == np.argmax(outputs[i]):
-            _score += 1
+        prediction_correct = (
+            is_classification(model) and np.argmax(prediction) == np.argmax(outputs[i])
+        ) or (not is_classification(model) and abs(prediction - outputs[i]) < variance)
+
+        if prediction_correct:
+            _score += 1.0
         else:
-            # TODO: change to support other loss functions
-            loss = keras.losses.categorical_crossentropy(
-                outputs[i], prediction, from_logits=False
-            )
-            _score += 1 / (1 + loss)
+            _score += 1.0 / (1.0 + model.loss(outputs[i], prediction))
 
     return _score
 
@@ -47,6 +48,7 @@ def fitness(
     weights_to_target: List[Tuple[int64, Tuple[int64, int64]]],
     trivial_weighting: float,
     alpha: float,
+    variance: float,
 ) -> ndarray:
     if len(weights) > 0:
         new_model = apply_patch(model, weights, weights_to_target)
@@ -54,15 +56,19 @@ def fitness(
         logging.debug("No weights to apply")
         new_model = model
 
-    neg_fitness = score(new_model, (neg[0], neg[1]))
-    pos_fitness = score(new_model, (pos[0], pos[1]))
+    neg_fitness = score(new_model, (neg[0], neg[1]), variance)
+    pos_fitness = score(new_model, (pos[0], pos[1]), variance)
 
     total_fitness = pos_fitness + alpha * neg_fitness
 
     # Maxmimise fitness of outputs not being targetted
     if pos_trivial is not None:
-        neg_trivial_fitness = score(new_model, (neg_trivial[0], neg_trivial[1]))
-        pos_trivial_fitness = score(new_model, (pos_trivial[0], pos_trivial[1]))
+        neg_trivial_fitness = score(
+            new_model, (neg_trivial[0], neg_trivial[1]), variance
+        )
+        pos_trivial_fitness = score(
+            new_model, (pos_trivial[0], pos_trivial[1]), variance
+        )
 
         total_fitness += (
             -1 * trivial_weighting * (neg_trivial_fitness + alpha * pos_trivial_fitness)
@@ -87,7 +93,7 @@ def apply_patch(model, patched_weights: ndarray, weights_to_target) -> Sequentia
     return new_model
 
 
-class DE(Searcher):
+class DEMultiprocessing(Searcher):
     """
     Use differential evolution to search for a patch of weights which improves the models
     fitness on negative inputs and keeps the fitness on positive inputs the same.
@@ -118,6 +124,9 @@ class DE(Searcher):
         self.alpha = get_config_val(
             self.additional_config, "operator.searcher.fitness.alpha", 0.8, float
         )
+        self.variance = get_config_val(
+            config=self.additional_config, key="correct_variance", default=1, type=float
+        )
 
     def callback_print(self, Xi, convergence):
         global Nfeval
@@ -131,6 +140,7 @@ class DE(Searcher):
             self.weights_to_target,
             self.trivial_weighting,
             self.alpha,
+            self.variance,
         )
         logger = logging.getLogger("athena")
 
@@ -189,5 +199,6 @@ class DE(Searcher):
                 self.weights_to_target,
                 self.trivial_weighting,
                 self.alpha,
+                self.variance,
             ),
         )
