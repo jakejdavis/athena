@@ -1,54 +1,131 @@
 import logging
-from multiprocessing import Process, Queue
-from typing import List, Tuple, Union
+from multiprocessing import Queue
+from typing import List, Tuple
 
-import keras
 import numpy as np
 import tensorflow as tf
 from keras.engine.sequential import Sequential
 from numpy import int64, ndarray
 from scipy.optimize import differential_evolution
-from scipy.optimize._optimize import OptimizeResult
 
 from utils.config import get_config_val
 from utils.model_utils import is_classification
 
+from .fitness_plotter import FitnessPlotter
 from .searcher import Searcher
 
-
-class FitnessPlotter(Process):
-    def __init__(self, queue: Queue) -> None:
-        super().__init__()
-        self.queue = queue
-        self.fitnesses = []
-
-    def run(self) -> None:
-        logging.getLogger("matplotlib").setLevel(logging.WARNING)
-
-        import matplotlib.pyplot as plt
-
-        plt.ion()
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.set_xlabel("Iteration")
-        ax.set_ylabel("Fitness")
-        ax.set_title("Fitness over time")
-        plt.show()
-
-        while True:
-            fitness = self.queue.get()
-            if fitness is None:
-                break
-            self.fitnesses.append(fitness)
-            ax.plot(self.fitnesses, "b-")
-            fig.canvas.draw()
-            fig.canvas.flush_events()
-
-    def update(self, fitness: List[float]) -> None:
-        self.queue.put(fitness)
-
-
 Nfeval = 1
+
+
+def score(
+    model: Sequential, inputs_outputs: Tuple[ndarray, ndarray], variance=None
+) -> float:
+    """
+    Score for model on inputs and outputs.
+
+    :param model: Model to score
+    :param inputs_outputs: Inputs and outputs to score on
+    :param variance: Used in regression, variance of a correct prediction
+    """
+    inputs, outputs = inputs_outputs
+
+    predictions = model(inputs)
+
+    _score = 0.0
+
+    for i, prediction in enumerate(predictions):
+        prediction_correct = (
+            is_classification(model) and np.argmax(prediction) == np.argmax(outputs[i])
+        ) or (not is_classification(model) and abs(prediction - outputs[i]) < variance)
+
+        if prediction_correct:
+            _score += 1.0
+        else:
+            _score += 1.0 / (1.0 + model.loss(outputs[i], prediction))
+
+    return _score
+
+
+def fitness_score(
+    patched_model: Sequential,
+    pos,
+    neg,
+    variance: float,
+    alpha: float,
+) -> float:
+    """
+    Fitness score for a model.
+
+    :param patched_model: Model to score
+    :param pos: Positive inputs and outputs
+    :param neg: Negative inputs and outputs
+    :param variance: Used in regression, variance of a correct prediction
+    :param alpha: Weighting of negative fitness
+    """
+    neg_fitness = score(patched_model, (neg[0], neg[1]), variance)
+    pos_fitness = score(patched_model, (pos[0], pos[1]), variance)
+
+    return pos_fitness + alpha * neg_fitness
+
+
+def fitness(
+    weights: ndarray,
+    model: Sequential,
+    pos,
+    neg,
+    pos_trivial,
+    neg_trivial,
+    weights_to_target: List[Tuple[int64, Tuple[int64, int64]]],
+    trivial_weighting: float,
+    alpha: float,
+    variance: float,
+) -> ndarray:
+    """
+    Fitness function for differential evolution.
+
+    :param weights: Weights to apply to the model
+    :param model: Model to apply weights to
+    :param pos: Positive inputs and outputs
+    :param neg: Negative inputs and outputs
+    :param pos_trivial: Positive trivial inputs and outputs
+    :param neg_trivial: Negative trivial inputs and outputs
+    :param weights_to_target: Weights to target
+    :param trivial_weighting: Weighting of trivial fitness
+    :param alpha: Weighting of negative fitness
+    :param variance: Used in regression, variance of a correct prediction
+    """
+    if len(weights) > 0:
+        new_model = apply_patch(model, weights, weights_to_target)
+    else:
+        logging.debug("No weights to apply")
+        new_model = model
+
+    total_fitness = fitness_score(new_model, pos, neg, variance, alpha)
+
+    # Maxmimise fitness of outputs not being targetted
+    if pos_trivial is not None:
+        total_fitness += (
+            -1
+            * trivial_weighting
+            * fitness_score(new_model, pos_trivial, neg_trivial, variance, alpha)
+        )
+
+    return total_fitness
+
+
+def apply_patch(model, patched_weights: ndarray, weights_to_target) -> Sequential:
+    new_model = model
+
+    for i, (layer_index, (neuron_index, weight_index)) in enumerate(weights_to_target):
+        new_model.layers[layer_index].weights[0].assign(
+            tf.tensor_scatter_nd_update(
+                new_model.layers[layer_index].weights[0],
+                [[neuron_index, weight_index]],
+                [patched_weights[i]],
+            )
+        )
+
+    return new_model
 
 
 class DE(Searcher):
@@ -60,161 +137,171 @@ class DE(Searcher):
     def __init__(
         self,
         model: Sequential,
-        pos_neg: Tuple[Tuple[ndarray, ndarray], Tuple[ndarray, ndarray]],
-        pos_neg_trivial: Tuple[Tuple[ndarray, ndarray], Tuple[ndarray, ndarray]],
+        data: Tuple[Tuple[ndarray, ndarray], Tuple[ndarray, ndarray]],
+        trivial_data: Tuple[Tuple[ndarray, ndarray], Tuple[ndarray, ndarray]],
         weights_to_target: List[Tuple[int, Tuple[int64, int64]]],
-        additional_config: dict = {},
+        additional_config: dict = None,
+        workers: int = -1,
     ) -> None:
         super().__init__(model)
 
-        (self.i_neg, self.o_neg), (self.i_pos, self.o_pos) = pos_neg
-
-        if pos_neg_trivial[0] is not None:
-            (self.i_neg_trivial, self.o_neg_trivial), (
-                self.i_pos_trivial,
-                self.o_pos_trivial,
-            ) = pos_neg_trivial
-
+        self.pos, self.neg = data
+        self.trivial_pos, self.trivial_neg = trivial_data
         self.weights_to_target = weights_to_target
-
+        self.workers = workers
         self.additional_config = additional_config
+
+        self.alpha = get_config_val(
+            self.additional_config, "operator.searcher.fitness.alpha", 0.8, float
+        )
         self.variance = get_config_val(
             config=self.additional_config, key="correct_variance", default=1, type=float
         )
+
         self.trivial_weighting = get_config_val(
-            config=self.additional_config,
-            key="operator.searcher.fitness.trivial_weighting",
-            default=0.8,
-            type=float,
-        )
-        self.alpha = get_config_val(
-            config=self.additional_config,
-            key="operator.searcher.fitness.alpha",
-            default=0.8,
-            type=float,
+            self.additional_config,
+            "operator.searcher.fitness.trivial_weighting",
+            None,
+            float,
         )
 
-        initial_fitness = self.fitness([])
-        logging.info(f"Starting with fitness {initial_fitness}")
+        if self.trivial_weighting is None:
+            logging.info("Weighting trivial fitness for initial fitness ~= 0")
+            standard_fitness_score = fitness_score(
+                self.model, self.pos, self.neg, self.variance, self.alpha
+            )
 
-        self.fitness_plot = FitnessPlotter(Queue())
-        self.fitness_plot.start()
+            trivial_fitness_score = fitness_score(
+                self.model,
+                self.trivial_pos,
+                self.trivial_neg,
+                self.variance,
+                self.alpha,
+            )
 
-        self.fitness_plot.update(initial_fitness)
+            self.trivial_weighting = standard_fitness_score / trivial_fitness_score
+            logging.info(f"Trivial weighting: {self.trivial_weighting}")
+
+        self.plot = get_config_val(
+            self.additional_config, "operator.searcher.plot.show", False, bool
+        )
+
+        if self.plot:
+            self.fitness_plot = FitnessPlotter(Queue())
+            self.fitness_plot.start()
+
+            # Initial plot is by default disabled as there will usually
+            # be a significant difference between the initial fitness and the
+            # fitness after the first iteration
+            if get_config_val(
+                self.additional_config,
+                "operator.searcher.plot.initial_fitness",
+                False,
+                bool,
+            ):
+                initial_fitness = fitness(
+                    np.array([]),
+                    self.model,
+                    self.pos,
+                    self.neg,
+                    self.trivial_pos,
+                    self.trivial_neg,
+                    self.weights_to_target,
+                    self.trivial_weighting,
+                    self.alpha,
+                    self.variance,
+                )
+
+                logging.info(f"Starting with fitness {initial_fitness}")
+                self.fitness_plot.update(initial_fitness)
 
     def __del__(self) -> None:
-        self.fitness_plot.update(None)
-        self.fitness_plot.join()
+        if self.plot:
+            self.fitness_plot.update(None)
+            self.fitness_plot.join()
 
-    def apply_patch(self, patched_weights: ndarray) -> Sequential:
-        new_model = self.model
+    def callback_print(self, Xi, convergence):
+        """
+        Callback function to print current best fitness and weights.
 
-        # Ignoring bias, using tf.tensor_scatter_nd_update
-        for i, (layer_index, (neuron_index, weight_index)) in enumerate(
-            self.weights_to_target
-        ):
-            new_model.layers[layer_index].weights[0].assign(
-                tf.tensor_scatter_nd_update(
-                    new_model.layers[layer_index].weights[0],
-                    [[neuron_index, weight_index]],
-                    [patched_weights[i]],
-                )
-            )
+        :param Xi: Current best weights
+        :param convergence: Current convergence
+        """
+        global Nfeval
+        xi_fitness = fitness(
+            Xi,
+            self.model,
+            self.pos,
+            self.neg,
+            self.trivial_pos,
+            self.trivial_neg,
+            self.weights_to_target,
+            self.trivial_weighting,
+            self.alpha,
+            self.variance,
+        )
+        logger = logging.getLogger("athena")
 
-        return new_model
-
-    def search(self) -> OptimizeResult:
-        # Set bounds to +/- 100% of the original weights
-        bounds = []
-
-        for i, (layer_index, (neuron_index, weight_index)) in enumerate(
-            self.weights_to_target
-        ):
-            bounds.append((-10, 10))
-
-        def callback_print(Xi, convergence):
-            global Nfeval
-            xi_fitness = self.fitness(Xi)
-            logger = logging.getLogger("athena")
-
-            if Nfeval == 1:
-                x_is = ""
-                for i in range(len(Xi)):
-                    x_is += f"\tw{i}\t"
-
-                logger.info(f"i {x_is}\tfitness")
-
+        if Nfeval == 1:
             x_is = ""
-            for x in Xi:
-                x_is += f"\t{x: 3.6f}"
+            for i in range(len(Xi)):
+                x_is += f"\tw{i}\t"
 
-            logger.info(f"{Nfeval} {x_is}\t{xi_fitness}")
+            logger.info(f"i {x_is}\tfitness")
 
+        x_is = ""
+        for x in Xi:
+            x_is += f"\t{x: 3.6f}"
+
+        logger.info(f"{Nfeval} {x_is}\t{xi_fitness}")
+
+        if self.plot:
             self.fitness_plot.update(xi_fitness)
-            Nfeval += 1
+        Nfeval += 1
 
-        return differential_evolution(
-            self.fitness,
-            bounds,
-            maxiter=100,
-            popsize=15,
-            tol=0.001,
-            mutation=(0.5, 1),
-            recombination=0.7,
-            callback=callback_print,
-            init="latinhypercube",
+    def search(self):
+        """
+        Perform the search for a patch of weights which minimizes the models fitness.
+        """
+        bounds_dist = get_config_val(
+            self.additional_config, "operator.searcher.bounds_dist", 1, float
+        )
+        bounds = [
+            (-bounds_dist, bounds_dist) for _ in range(len(self.weights_to_target))
+        ]
+
+        # Re-compile model to remove other metric functions
+        self.model.compile(
+            optimizer=self.model.optimizer, loss=self.model.loss, metrics=["accuracy"]
         )
 
-    def score(
-        self, model: Sequential, inputs_outputs: Tuple[ndarray, ndarray]
-    ) -> float:
-        inputs, outputs = inputs_outputs
-
-        predictions = model(inputs)
-
-        _score = 0.0
-
-        for i, prediction in enumerate(predictions):
-            prediction_correct = (
-                is_classification(model)
-                and np.argmax(prediction) == np.argmax(outputs[i])
-            ) or (
-                not is_classification(model)
-                and abs(prediction - outputs[i]) < self.variance
-            )
-
-            if prediction_correct:
-                _score += 1.0
-            else:
-                _score += 1.0 / (1.0 + model.loss(outputs[i], prediction))
-
-        return _score
-
-    def fitness(self, weights: ndarray) -> ndarray:
-        if len(weights) > 0:
-            self.new_model = self.apply_patch(weights)
-        else:
-            logging.debug("No weights to apply")
-            self.new_model = self.model
-
-        neg_fitness = self.score(self.new_model, (self.i_neg, self.o_neg))
-        pos_fitness = self.score(self.new_model, (self.i_pos, self.o_pos))
-
-        total_fitness = pos_fitness + self.alpha * neg_fitness
-
-        # Maxmimise fitness of outputs not being targetted
-        if hasattr(self, "i_neg_trivial"):
-            neg_trivial_fitness = self.score(
-                self.new_model, (self.i_neg_trivial, self.o_neg_trivial)
-            )
-            pos_trivial_fitness = self.score(
-                self.new_model, (self.i_pos_trivial, self.o_pos_trivial)
-            )
-
-            total_fitness += (
-                -1
-                * self.trivial_weighting
-                * (neg_trivial_fitness + self.alpha * pos_trivial_fitness)
-            )
-
-        return total_fitness
+        return differential_evolution(
+            fitness,
+            bounds,
+            maxiter=get_config_val(
+                self.additional_config, "operator.searcher.maxiter", 100, int
+            ),
+            popsize=get_config_val(
+                self.additional_config, "operator.searcher.popsize", 100, int
+            ),
+            tol=get_config_val(
+                self.additional_config, "operator.searcher.tol", 0.001, float
+            ),
+            mutation=(0.25, 1.5),
+            recombination=0.7,
+            init="latinhypercube",
+            workers=self.workers,
+            updating="deferred",
+            callback=self.callback_print,
+            args=(
+                self.model,
+                self.pos,
+                self.neg,
+                self.trivial_pos,
+                self.trivial_neg,
+                self.weights_to_target,
+                self.trivial_weighting,
+                self.alpha,
+                self.variance,
+            ),
+        )

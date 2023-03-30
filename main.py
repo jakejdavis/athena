@@ -255,9 +255,9 @@ def run(
 
     for test_name, test in tests.items():
         if test["pass"](test["value"]):
-            logging.info(f"✓ {test_name} has accuracy {test['value']}")
+            logging.info(f"\u2713 {test_name} has accuracy {test['value']}")
         else:
-            logging.info(f"✗ {test_name} has accuracy {test['value']}")
+            logging.info(f"\u2717 {test_name} has accuracy {test['value']}")
 
 
 @cli.command(cls=BasicCommand)

@@ -6,7 +6,7 @@ from numpy import ndarray
 from utils.config import get_config_val
 
 from .athena import localisation, searchers
-from .athena.searchers.de_multiprocessing import apply_patch
+from .athena.searchers.de import apply_patch
 from .operator import Operator
 
 
@@ -21,6 +21,14 @@ class AthenaOperator(Operator):
         pos_trivial: tuple = None,
         neg_trivial: tuple = None,
     ) -> Sequential:
+        """
+        Generate a patch for the model using the given positive and negative examples.
+
+        :param pos: Positive examples
+        :param neg: Negative examples
+        :param pos_trivial: Trivial positive examples
+        :param neg_trivial: Trivial negative examples
+        """
         assert self.model is not None, "Model not found"
 
         assert len(pos[0]) > 0, "No positive examples"
@@ -53,26 +61,14 @@ class AthenaOperator(Operator):
                 self.additional_config, "operator.searcher.workers", 1, int
             )
 
-            if workers != 1:
-                logging.debug(
-                    f"Using multiprocessing DE with {'max' if workers == -1 else workers} workers"
-                )
-                patch_searcher = searchers.DEMultiprocessing(
-                    self.model,
-                    (pos, neg),
-                    (pos_trivial, neg_trivial),
-                    patch,
-                    self.additional_config,
-                    workers,
-                )
-            else:
-                patch_searcher = searchers.DE(
-                    self.model,
-                    (pos, neg),
-                    (pos_trivial, neg_trivial),
-                    patch,
-                    self.additional_config,
-                )
+            patch_searcher = searchers.DE(
+                self.model,
+                (pos, neg),
+                (pos_trivial, neg_trivial),
+                patch,
+                self.additional_config,
+                workers,
+            )
 
         patched_weights = patch_searcher.search().x
         patched_model = apply_patch(self.model, patched_weights, patch)

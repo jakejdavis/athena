@@ -9,9 +9,12 @@ def get_config_val(config, key, default=None, type=str):
             val = val[key_part]
         else:
             if default is None:
-                logging.error("Key %s not found in config" % key)
-                exit(1)
-            logging.debug("Key %s not found in config, using default value" % key)
+                logging.debug(f"Key {key} not found in config, returning None")
+                return None
+
+            logging.debug(
+                f"Key {key} not found in config, using default value {str(default)}"
+            )
             val = default
             break
 
