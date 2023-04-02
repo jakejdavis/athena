@@ -1,6 +1,7 @@
 import logging
+import os
 from multiprocessing import Queue
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
@@ -70,7 +71,7 @@ def fitness_score(
 
 def fitness(
     weights: ndarray,
-    model: Sequential,
+    model: Union[Sequential, str],
     pos,
     neg,
     pos_trivial,
@@ -94,6 +95,16 @@ def fitness(
     :param alpha: Weighting of negative fitness
     :param variance: Used in regression, variance of a correct prediction
     """
+
+    if isinstance(model, str):
+        # For multiprocessing, load model from file
+        model = tf.keras.models.load_model(model)
+        model.compile(
+            optimizer=model.optimizer,
+            loss=model.loss,
+            metrics=["accuracy"],
+        )
+
     if len(weights) > 0:
         new_model = apply_patch(model, weights, weights_to_target)
     else:
@@ -114,18 +125,16 @@ def fitness(
 
 
 def apply_patch(model, patched_weights: ndarray, weights_to_target) -> Sequential:
-    new_model = model
-
-    for i, (layer_index, (neuron_index, weight_index)) in enumerate(weights_to_target):
-        new_model.layers[layer_index].weights[0].assign(
+    for i, (layer_index, neuron) in enumerate(weights_to_target):
+        model.layers[layer_index].weights[0].assign(
             tf.tensor_scatter_nd_update(
-                new_model.layers[layer_index].weights[0],
-                [[neuron_index, weight_index]],
+                model.layers[layer_index].weights[0],
+                [neuron],
                 [patched_weights[i]],
             )
         )
 
-    return new_model
+    return model
 
 
 class DE(Searcher):
@@ -133,6 +142,8 @@ class DE(Searcher):
     Use differential evolution to search for a patch of weights which improves the models
     fitness on negative inputs and keeps the fitness on positive inputs the same.
     """
+
+    TEMP_MODEL_PATH = "cache/model_mp.h5"
 
     def __init__(
         self,
@@ -220,6 +231,8 @@ class DE(Searcher):
             self.fitness_plot.update(None)
             self.fitness_plot.join()
 
+        os.remove(self.TEMP_MODEL_PATH)
+
     def callback_print(self, Xi, convergence):
         """
         Callback function to print current best fitness and weights.
@@ -275,6 +288,13 @@ class DE(Searcher):
             optimizer=self.model.optimizer, loss=self.model.loss, metrics=["accuracy"]
         )
 
+        if self.workers != 1:
+            if os.path.exists(self.TEMP_MODEL_PATH):
+                os.remove(self.TEMP_MODEL_PATH)
+            else:
+                os.makedirs(os.path.dirname(self.TEMP_MODEL_PATH), exist_ok=True)
+            self.model.save(self.TEMP_MODEL_PATH)
+
         return differential_evolution(
             fitness,
             bounds,
@@ -294,7 +314,7 @@ class DE(Searcher):
             updating="deferred",
             callback=self.callback_print,
             args=(
-                self.model,
+                self.TEMP_MODEL_PATH if self.workers != 1 else self.model,
                 self.pos,
                 self.neg,
                 self.trivial_pos,

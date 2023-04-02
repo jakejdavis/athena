@@ -40,7 +40,7 @@ class FashionMNISTModel(Model):
         (x_train, y_train), (x_test, y_test) = self.generate_training_data()
 
         batch_size = 128
-        epochs = 12
+        epochs = 20
 
         model = Sequential()
         model.add(Dense(100, input_shape=self.input_shape))
@@ -48,7 +48,9 @@ class FashionMNISTModel(Model):
         model.add(Dense(10))
         model.add(Activation("softmax"))
         model.compile(
-            optimizer=Adam(), loss="categorical_crossentropy", metrics=["accuracy"]
+            optimizer=Adam(),
+            loss=keras.losses.categorical_crossentropy,
+            metrics=["accuracy"],
         )
         model.fit(
             x_train,
@@ -61,8 +63,8 @@ class FashionMNISTModel(Model):
         # model.save(os.path.join("trained_models", model_name + "_trained.h5"))
         score = model.evaluate(x_train, y_train, verbose=0)
 
-        logging.info("Test loss: %s", score[0])
-        logging.info("Test accuracy: %s", score[1])
+        logging.info("Train loss: %s", score[0])
+        logging.info("Train accuracy: %s", score[1])
 
         return model
 

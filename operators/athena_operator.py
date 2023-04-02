@@ -1,6 +1,8 @@
 import logging
+from typing import Callable
 
 from keras.engine.sequential import Sequential
+from keras.models import clone_model
 from numpy import ndarray
 
 from utils.config import get_config_val
@@ -30,6 +32,7 @@ class AthenaOperator(Operator):
         :param neg_trivial: Trivial negative examples
         """
         assert self.model is not None, "Model not found"
+        assert isinstance(self.model.loss, Callable), "Model loss not callable"
 
         assert len(pos[0]) > 0, "No positive examples"
         assert len(neg[0]) > 0, "No negative examples"
@@ -51,6 +54,13 @@ class AthenaOperator(Operator):
         else:
             logging.error(f"Localisation method {localisation_method} not implemented")
 
+        model_copy = clone_model(self.model)
+        model_copy.compile(
+            loss=self.model.loss,
+            optimizer=self.model.optimizer,
+            metrics=self.model.metrics,
+        )
+
         # Set searcher from config
         if (
             get_config_val(self.additional_config, "operator.searcher.name", "de")
@@ -62,7 +72,7 @@ class AthenaOperator(Operator):
             )
 
             patch_searcher = searchers.DE(
-                self.model,
+                model_copy,
                 (pos, neg),
                 (pos_trivial, neg_trivial),
                 patch,
@@ -71,7 +81,7 @@ class AthenaOperator(Operator):
             )
 
         patched_weights = patch_searcher.search().x
-        patched_model = apply_patch(self.model, patched_weights, patch)
+        patched_model = apply_patch(model_copy, patched_weights, patch)
         logging.info("Patch generated: %s" % patched_weights)
 
         return patched_model

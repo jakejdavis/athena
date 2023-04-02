@@ -47,7 +47,7 @@ class MNISTConvModel(Model):
         (x_train, y_train), (x_test, y_test) = self.generate_training_data()
 
         batch_size = 128
-        epochs = 12
+        epochs = 20
 
         model = Sequential()
         model.add(
@@ -63,7 +63,9 @@ class MNISTConvModel(Model):
         model.add(Dropout(0.5))
         model.add(Dense(self.num_classes, activation="softmax"))
         model.compile(
-            optimizer=Adam(), loss="categorical_crossentropy", metrics=["accuracy"]
+            optimizer=Adam(),
+            loss=keras.losses.categorical_crossentropy,
+            metrics=["accuracy"],
         )
         model.fit(
             x_train,
@@ -76,8 +78,8 @@ class MNISTConvModel(Model):
         # model.save(os.path.join("trained_models", model_name + "_trained.h5"))
         score = model.evaluate(x_train, y_train, verbose=0)
 
-        logging.info("Test loss: %s", score[0])
-        logging.info("Test accuracy: %s", score[1])
+        logging.info("Train loss: %s", score[0])
+        logging.info("Train accuracy: %s", score[1])
 
         return model
 
@@ -161,7 +163,11 @@ class MNISTConvModel(Model):
                 x_test = x_test[y_test == specific_output]
                 y_test = y_test[y_test == specific_output]
 
-        x_test = x_test.reshape(x_test.shape[0], self.img_rows, self.img_cols)
+        if K.image_data_format() == "channels_first":
+            x_test = x_test.reshape(x_test.shape[0], 1, self.img_rows, self.img_cols)
+        else:
+            x_test = x_test.reshape(x_test.shape[0], self.img_rows, self.img_cols, 1)
+
         x_test = x_test.astype("float32")
         x_test /= 255
 

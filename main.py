@@ -6,11 +6,15 @@ import sys
 
 import click
 import keras
+import numpy as np
+from tqdm import tqdm
 
 import models
 import operators
 import test_sets
-import utils
+import utils.config
+import utils.model_utils
+import utils.stats
 from logger import set_logger_level
 
 TRAINED_MODELS_DIR = "trained_models"
@@ -42,30 +46,21 @@ def _generate(
     logging.info(f"Trained models directory: {trained_models_dir}")
     logging.info(f"Mutants directory: {mutants_dir}")
 
-    if additional_config is not None:
-        if os.path.exists(additional_config):
-            with open(additional_config, "r") as f:
-                additional_config = json.load(f)
-        else:
-            logging.debug(
-                f"Additional config file {additional_config} not found, trying to load as json"
-            )
-            additional_config = json.loads(additional_config)
-    else:
-        additional_config = {}
-    logging.info(f"Additional config: {additional_config}")
-
     # Load/train subject
 
     model_utils = models.get_model(subject_name)(additional_config)
 
+    use_cache = utils.config.get_config_val(additional_config, "cache", True, bool)
+
     trained_model_path = os.path.join(trained_models_dir, subject_name + "_trained.h5")
-    if not os.path.exists(trained_model_path):
+    if not os.path.exists(trained_model_path) or not use_cache:
         logging.info(
             f"Trained model for subject {subject_name} not found. Training now..."
         )
         model = model_utils.train(subject_name)
-        model.save(trained_model_path)
+
+        if not use_cache:
+            model.save(trained_model_path)
     else:
         logging.info(f"Loading trained model from {trained_model_path}")
         model = keras.models.load_model(trained_model_path)
@@ -90,7 +85,7 @@ def _generate(
         )
         specific_output_int = int(specific_output)
 
-        if not os.path.exists(input_outputs_trivial_path):
+        if not os.path.exists(input_outputs_trivial_path) or not use_cache:
             logging.info(
                 "Generating trivial inputs and outputs"
                 + (" for specific output" if specific_output is not None else "")
@@ -98,9 +93,11 @@ def _generate(
             pos_trivial, neg_trivial = model_utils.generate_inputs_outputs(
                 model, specific_output=specific_output_int, trivial=True
             )
-            pickle.dump(
-                (pos_trivial, neg_trivial), open(input_outputs_trivial_path, "wb")
-            )
+
+            if use_cache:
+                pickle.dump(
+                    (pos_trivial, neg_trivial), open(input_outputs_trivial_path, "wb")
+                )
         else:
             logging.info(
                 f"Using cached trivial inputs and outputs from {input_outputs_trivial_path}"
@@ -109,7 +106,7 @@ def _generate(
                 open(input_outputs_trivial_path, "rb")
             )
 
-    if not os.path.exists(input_outputs_path):
+    if not os.path.exists(input_outputs_path) or not use_cache:
         logging.info(
             "Generating inputs and outputs"
             + (" for specific output" if specific_output is not None else "")
@@ -117,7 +114,9 @@ def _generate(
         pos, neg = model_utils.generate_inputs_outputs(
             model, specific_output=specific_output_int
         )
-        pickle.dump((pos, neg), open(input_outputs_path, "wb"))
+
+        if use_cache:
+            pickle.dump((pos, neg), open(input_outputs_path, "wb"))
     else:
         logging.info(f"Using cached inputs and outputs from {input_outputs_path}")
         pos, neg = pickle.load(open(input_outputs_path, "rb"))
@@ -146,13 +145,14 @@ def _generate(
     if not os.path.exists(mutants_dir):
         os.makedirs(mutants_dir)
 
-    patched_model_path = os.path.join(mutants_dir, subject_name + "_patched.h5")
-    if specific_output is not None:
-        patched_model_path = os.path.join(
-            mutants_dir, subject_name + "_patched_" + specific_output + ".h5"
-        )
-    logging.info(f"Saving mutant to {patched_model_path}")
-    patched_model.save(patched_model_path)
+    if use_cache:
+        patched_model_path = os.path.join(mutants_dir, subject_name + "_patched.h5")
+        if specific_output is not None:
+            patched_model_path = os.path.join(
+                mutants_dir, subject_name + "_patched_" + specific_output + ".h5"
+            )
+        logging.info(f"Saving mutant to {patched_model_path}")
+        patched_model.save(patched_model_path)
 
     return model, patched_model
 
@@ -181,7 +181,7 @@ def _generate(
 @click.option(
     "-o",
     "--additional-config",
-    help="Path to additional configuration json file.",
+    help="Path to additional configuration json file or json string.",
 )
 def run(
     subject_name,
@@ -194,6 +194,8 @@ def run(
 ):
     """Runs example test set on subject."""
     set_logger_level(verbose)
+
+    additional_config = utils.config.load_config(additional_config)
 
     model_path = os.path.join(trained_models_dir, subject_name + "_trained.h5")
     patched_model_path = os.path.join(
@@ -219,7 +221,6 @@ def run(
             additional_config,
         )
 
-    test_set = test_sets.get_test_set(test_set)(additional_config)
     model_utils = models.get_model(subject_name)(additional_config)
 
     specific_output_int = None
@@ -283,7 +284,7 @@ def run(
 @click.option(
     "-o",
     "--additional-config",
-    help="Path to additional configuration json file.",
+    help="Path to additional configuration json file or json string.",
 )
 def generate(
     subject_name,
@@ -295,6 +296,8 @@ def generate(
 ):
     """Generates mutant for subject."""
     set_logger_level(verbose)
+
+    additional_config = utils.config.load_config(additional_config)
     _generate(
         subject_name,
         trained_models_dir,
@@ -302,6 +305,125 @@ def generate(
         specific_output,
         additional_config,
     )
+
+
+@cli.command(cls=BasicCommand)
+@click.argument("subject_name")
+@click.option(
+    "-t",
+    "--trained-models-dir",
+    default="trained_models",
+    help="Directory to load/save trained models.",
+)
+@click.option(
+    "-m",
+    "--mutants_dir",
+    default="mutants",
+    help="Directory to save mutated models.",
+)
+@click.option(
+    "-p",
+    "--specific-output",
+    default=None,
+    help="Specific output to generate mutants for.",
+)
+@click.option(
+    "-o",
+    "--additional-config",
+    help="Path to additional configuration json file or json string.",
+)
+def evaluate(
+    subject_name,
+    trained_models_dir,
+    mutants_dir,
+    specific_output,
+    additional_config,
+    verbose,
+):
+    """Evaluates a given operator by retraining the model,
+    generating a mutant and measuring the effect size of the mutation."""
+    set_logger_level(verbose)
+
+    additional_config = utils.config.load_config(additional_config)
+
+    logging.debug(f"Forcing cache to False for evaluation")
+    additional_config["cache"] = False
+
+    iterations = utils.config.get_config_val(
+        additional_config, "evaluate.iterations", 10, int
+    )
+
+    original_effect_sizes = []
+    patched_effect_sizes = []
+
+    for i in tqdm(range(iterations)):
+        logging.info(f"Running iteration {i+1}/{iterations}")
+
+        model_utils = models.get_model(subject_name)(additional_config)
+
+        if True:
+            model, patched_model = _generate(
+                subject_name,
+                trained_models_dir,
+                mutants_dir,
+                specific_output,
+                additional_config,
+            )
+        else:
+            import tensorflow as tf
+
+            model = tf.keras.models.load_model(
+                f"trained_models/{subject_name}_trained.h5"
+            )
+            patched_model = tf.keras.models.load_model(
+                f"mutants/{subject_name}_patched_0.h5"
+            )
+
+        # evaluate model and patched_model and calculate effect size
+        specific_output_int = None
+        if specific_output is not None:
+            specific_output_int = int(specific_output)
+
+        inputs, outputs = model_utils.generate_evaluation_data(
+            specific_output=specific_output_int, trivial=False
+        )
+
+        original_effect_sizes.append(model.evaluate(inputs, outputs, verbose=0)[1])
+        patched_effect_sizes.append(
+            patched_model.evaluate(inputs, outputs, verbose=0)[1]
+        )
+
+        logging.info("Iteration complete!")
+        logging.info(f"- Original model accuracy: {original_effect_sizes[-1]}")
+        logging.info(f"- Patched model accuracy: {patched_effect_sizes[-1]}")
+
+    original_effect_sizes = np.array(original_effect_sizes)
+    patched_effect_sizes = np.array(patched_effect_sizes)
+
+    is_significant, p_value, effect_size = utils.stats.is_significant(
+        original_effect_sizes, patched_effect_sizes
+    )
+
+    if is_significant:
+        logging.info(
+            f"\u2713 The effect size of the mutation is significant (p-value = {p_value}, effect size = {effect_size})"
+        )
+    else:
+        logging.info(
+            f"\u2717 The effect size of the mutation is not significant (p-value = {p_value}, effect size = {effect_size})"
+        )
+
+    # Save evaluation to file
+    with open(f"evaluation/{subject_name}_evaluation.json", "w") as f:
+        json.dump(
+            {
+                "original_effect_sizes": original_effect_sizes.tolist(),
+                "patched_effect_sizes": patched_effect_sizes.tolist(),
+                "p_value": p_value,
+                "effect_size": effect_size,
+            },
+            f,
+        )
 
 
 if __name__ == "__main__":
