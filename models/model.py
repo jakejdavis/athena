@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+from keras.engine.sequential import Sequential
+
 
 class Model(ABC):
     """

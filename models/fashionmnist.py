@@ -39,7 +39,7 @@ class FashionMNISTModel(Model):
 
         (x_train, y_train), (x_test, y_test) = self.generate_training_data()
 
-        batch_size = 1024
+        batch_size = 2048
         epochs = 20
 
         model = Sequential()
