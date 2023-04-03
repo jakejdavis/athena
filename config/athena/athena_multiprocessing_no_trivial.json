@@ -6,7 +6,8 @@
         "name": "de",
         "workers": -1,
         "fitness": {
-          "alpha": 0.8
+          "alpha": 0.8,
+          "trivial_weighting": 0
         },
         "maxiter": 25,
         "popsize": 100,

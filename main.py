@@ -3,6 +3,7 @@ import logging
 import os
 import pickle
 import sys
+import time
 
 import click
 import keras
@@ -132,6 +133,7 @@ def _generate(
 
     operator = operators.get_operator(operator_name)(model, additional_config)
 
+    time_start = time.time()
     logging.info(f"Generating mutant using {operator_name} operator")
     patched_model = operator(
         pos,
@@ -139,6 +141,7 @@ def _generate(
         pos_trivial=pos_trivial,
         neg_trivial=neg_trivial,
     )
+    time_to_generate = time.time() - time_start
 
     # Save mutant
 
@@ -154,7 +157,7 @@ def _generate(
         logging.info(f"Saving mutant to {patched_model_path}")
         patched_model.save(patched_model_path)
 
-    return model, patched_model
+    return model, patched_model, time_to_generate
 
 
 @cli.command(cls=BasicCommand)
@@ -213,7 +216,7 @@ def run(
         patched_model = keras.models.load_model(patched_model_path)
     else:
         logging.info("Generating patched model")
-        model, patched_model = _generate(
+        model, patched_model, _ = _generate(
             subject_name,
             trained_models_dir,
             mutants_dir,
@@ -353,31 +356,27 @@ def evaluate(
         additional_config, "evaluate.iterations", 10, int
     )
 
-    original_effect_sizes = []
-    patched_effect_sizes = []
+    original_model_accuracy = []
+    patched_model_accuracy = []
+
+    original_model_accuracy_trivial = []
+    patched_model_accuracy_trivial = []
+
+    times_to_generate = []
 
     for i in tqdm(range(iterations)):
         logging.info(f"Running iteration {i+1}/{iterations}")
 
         model_utils = models.get_model(subject_name)(additional_config)
 
-        if True:
-            model, patched_model = _generate(
-                subject_name,
-                trained_models_dir,
-                mutants_dir,
-                specific_output,
-                additional_config,
-            )
-        else:
-            import tensorflow as tf
-
-            model = tf.keras.models.load_model(
-                f"trained_models/{subject_name}_trained.h5"
-            )
-            patched_model = tf.keras.models.load_model(
-                f"mutants/{subject_name}_patched_0.h5"
-            )
+        model, patched_model, time_to_generate = _generate(
+            subject_name,
+            trained_models_dir,
+            mutants_dir,
+            specific_output,
+            additional_config,
+        )
+        times_to_generate.append(time_to_generate)
 
         # evaluate model and patched_model and calculate effect size
         specific_output_int = None
@@ -388,37 +387,65 @@ def evaluate(
             specific_output=specific_output_int, trivial=False
         )
 
-        original_effect_sizes.append(model.evaluate(inputs, outputs, verbose=0)[1])
-        patched_effect_sizes.append(
+        original_model_accuracy.append(model.evaluate(inputs, outputs, verbose=0)[1])
+        patched_model_accuracy.append(
             patched_model.evaluate(inputs, outputs, verbose=0)[1]
         )
 
-        logging.info("Iteration complete!")
-        logging.info(f"- Original model accuracy: {original_effect_sizes[-1]}")
-        logging.info(f"- Patched model accuracy: {patched_effect_sizes[-1]}")
-
-    original_effect_sizes = np.array(original_effect_sizes)
-    patched_effect_sizes = np.array(patched_effect_sizes)
-
-    is_significant, p_value, effect_size = utils.stats.is_significant(
-        original_effect_sizes, patched_effect_sizes
-    )
-
-    if is_significant:
-        logging.info(
-            f"\u2713 The effect size of the mutation is significant (p-value = {p_value}, effect size = {effect_size})"
+        trivial_inputs, trivial_outputs = model_utils.generate_evaluation_data(
+            specific_output=specific_output_int, trivial=True
         )
-    else:
-        logging.info(
-            f"\u2717 The effect size of the mutation is not significant (p-value = {p_value}, effect size = {effect_size})"
+
+        original_model_accuracy_trivial.append(
+            model.evaluate(trivial_inputs, trivial_outputs, verbose=0)[1]
         )
+        patched_model_accuracy_trivial.append(
+            patched_model.evaluate(trivial_inputs, trivial_outputs, verbose=0)[1]
+        )
+
+        logging.info(f"Iteration complete (took {times_to_generate[-1]} seconds)")
+        logging.info(f"- Original model accuracy: {original_model_accuracy[-1]}")
+        logging.info(f"- Patched model accuracy: {patched_model_accuracy[-1]}")
+        logging.info(
+            f"- Original model accuracy (trivial): {original_model_accuracy_trivial[-1]}"
+        )
+        logging.info(
+            f"- Patched model accuracy (trivial): {patched_model_accuracy_trivial[-1]}"
+        )
+
+    original_model_accuracy = np.array(original_model_accuracy)
+    patched_model_accuracy = np.array(patched_model_accuracy)
+
+    original_model_accuracy_trivial = np.array(original_model_accuracy_trivial)
+    patched_model_accuracy_trivial = np.array(patched_model_accuracy_trivial)
+
+    try:
+        is_significant, p_value, effect_size = utils.stats.is_significant(
+            original_model_accuracy, patched_model_accuracy
+        )
+
+        if is_significant:
+            logging.info(
+                f"\u2713 The effect size of the mutation is significant (p-value = {p_value}, effect size = {effect_size})"
+            )
+        else:
+            logging.info(
+                f"\u2717 The effect size of the mutation is not significant (p-value = {p_value}, effect size = {effect_size})"
+            )
+    except Exception as e:
+        logging.error(f"Could not calculate effect size: {e}")
+        p_value = None
+        effect_size = None
 
     # Save evaluation to file
-    with open(f"evaluation/{subject_name}_evaluation.json", "w") as f:
+    with open(f"evaluation/{subject_name}_evaluation_{specific_output}.json", "w") as f:
         json.dump(
             {
-                "original_effect_sizes": original_effect_sizes.tolist(),
-                "patched_effect_sizes": patched_effect_sizes.tolist(),
+                "original_model_accuracy": original_model_accuracy.tolist(),
+                "patched_model_accuracy": patched_model_accuracy.tolist(),
+                "original_model_accuracy_trivial": original_model_accuracy_trivial.tolist(),
+                "patched_model_accuracy_trivial": patched_model_accuracy_trivial.tolist(),
+                "time_to_generate": times_to_generate,
                 "p_value": p_value,
                 "effect_size": effect_size,
             },

@@ -143,10 +143,6 @@ class Localiser(ABC):
             loss_tensor = tf.nn.sigmoid_cross_entropy_with_logits(
                 labels=y_tensor, logits=self.model.output, name="per_label_loss"
             )
-        elif self.model.loss == mse:
-            loss_tensor = tf.keras.losses.MSE(y_tensor, self.model.output)
-        elif self.model.loss == mae:
-            loss_tensor = tf.keras.losses.MAE(y_tensor, self.model.output)
         else:
             logging.error("Loss function not implemented")
             sys.exit(1)

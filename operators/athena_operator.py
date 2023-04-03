@@ -6,6 +6,7 @@ from keras.models import clone_model
 from numpy import ndarray
 
 from utils.config import get_config_val
+from utils.model_utils import safe_clone_model
 
 from .athena import localisation, searchers
 from .athena.searchers.de import apply_patch
@@ -54,12 +55,7 @@ class AthenaOperator(Operator):
         else:
             logging.error(f"Localisation method {localisation_method} not implemented")
 
-        model_copy = clone_model(self.model)
-        model_copy.compile(
-            loss=self.model.loss,
-            optimizer=self.model.optimizer,
-            metrics=self.model.metrics,
-        )
+        model_copy = safe_clone_model(self.model)
 
         # Set searcher from config
         if (

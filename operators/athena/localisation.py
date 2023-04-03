@@ -98,9 +98,11 @@ def bidirectional_localisation(model: Sequential, pos: tuple, neg: tuple) -> Non
         logging.debug("Layer weights (kernel) shape: {}".format(layer_weights.shape))
 
         # Use the localiser for the layer type
-        localiser = localisers.get_localiser(layer_type)(
-            model, layer_index, layer_weights, norm_scaler
-        )
+        localiser_class = localisers.get_localiser(layer_type)
+        if localiser_class is None:
+            logging.debug("Skipping layer with no localiser: {}".format(layer.name))
+            continue
+        localiser = localiser_class(model, layer_index, layer_weights, norm_scaler)
 
         layer_fi_gl_neg = localiser.compute_fi_gl(neg)
         layer_fi_gl_pos = localiser.compute_fi_gl(pos)

@@ -3,8 +3,8 @@ import logging
 import sys
 from typing import Type
 
-from .boston import BostonModel
 from .fashionmnist import FashionMNISTModel
+from .imdb import IMDBModel
 from .mnist_conv import MNISTConvModel
 from .model import Model
 
@@ -20,8 +20,8 @@ def get_model(name: str) -> Type[Model]:
         return FashionMNISTModel
     if name.lower() == "mnist_conv":
         return MNISTConvModel
-    if name.lower() == "boston":
-        return BostonModel
+    if name.lower() == "imdb":
+        return IMDBModel
 
     logging.debug(f"Model {name} not found, trying to import dynamically")
     return get_model_dynamic(name)

@@ -19,5 +19,4 @@ def get_localiser(name: str) -> Type[Localiser]:
     elif name == "C2D":
         return C2DLocaliser
     else:
-        logging.error(f"Localiser for {name} not implemented")
-        sys.exit(1)
+        return None
