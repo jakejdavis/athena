@@ -8,6 +8,7 @@ import time
 import click
 import keras
 import numpy as np
+import tensorflow as tf
 from tqdm import tqdm
 
 import models
@@ -19,6 +20,7 @@ import utils.stats
 from logger import set_logger_level
 
 TRAINED_MODELS_DIR = "trained_models"
+EVALUATION_DIR = "evaluation"
 CACHE_DIR = "cache"
 
 
@@ -58,7 +60,7 @@ def _generate(
         logging.info(
             f"Trained model for subject {subject_name} not found. Training now..."
         )
-        model = model_utils.train(subject_name)
+        model = model_utils.train()
 
         if not use_cache:
             model.save(trained_model_path)
@@ -349,8 +351,7 @@ def evaluate(
 
     additional_config = utils.config.load_config(additional_config)
 
-    logging.debug(f"Forcing cache to False for evaluation")
-    additional_config["cache"] = False
+    cache = utils.config.get_config_val(additional_config, "cache", True, bool)
 
     iterations = utils.config.get_config_val(
         additional_config, "evaluate.iterations", 10, int
@@ -367,16 +368,43 @@ def evaluate(
     for i in tqdm(range(iterations)):
         logging.info(f"Running iteration {i+1}/{iterations}")
 
+        model_path = os.path.join(
+            EVALUATION_DIR,
+            "models",
+            "original",
+            f"{subject_name}_{specific_output}_{i}.h5",
+        )
+        patched_model_path = os.path.join(
+            EVALUATION_DIR,
+            "models",
+            "mutants",
+            f"{subject_name}_{specific_output}_{i}.h5",
+        )
+
         model_utils = models.get_model(subject_name)(additional_config)
 
-        model, patched_model, time_to_generate = _generate(
-            subject_name,
-            trained_models_dir,
-            mutants_dir,
-            specific_output,
-            additional_config,
-        )
-        times_to_generate.append(time_to_generate)
+        if os.path.exists(model_path) and os.path.exists(patched_model_path) and cache:
+            logging.info(f"Loading models from disk")
+            model = tf.keras.models.load_model(model_path)
+            patched_model = tf.keras.models.load_model(patched_model_path)
+        else:
+            logging.debug(f"Forcing cache to False for evaluation mutant generation")
+            additional_config["cache"] = False
+            model, patched_model, time_to_generate = _generate(
+                subject_name,
+                trained_models_dir,
+                mutants_dir,
+                specific_output,
+                additional_config,
+            )
+            times_to_generate.append(time_to_generate)
+
+            logging.info(f"Saving models to disk")
+            os.makedirs(os.path.dirname(model_path), exist_ok=True)
+            os.makedirs(os.path.dirname(patched_model_path), exist_ok=True)
+
+            model.save(model_path)
+            patched_model.save(patched_model_path)
 
         # evaluate model and patched_model and calculate effect size
         specific_output_int = None

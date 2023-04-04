@@ -55,9 +55,12 @@ evaluate_imdb_mp:
 
 
 evaluate_all_mp:
-	@make evaluate_mnist_conv_mp specific-output=$(specific-output)
-	@make evaluate_fashionmnist_mp specific-output=$(specific-output)
-	@make evaluate_imdb_mp specific-output=$(specific-output)
+	@make evaluate_mnist_conv_mp specific-output=0
+	@make evaluate_fashionmnist_mp specific-output=0
+	@make evaluate_imdb_mp specific-output=0
+	@make evaluate_mnist_conv_mp specific-output=1
+	@make evaluate_fashionmnist_mp specific-output=1
+	@make evaluate_imdb_mp specific-output=1
 
 # PLOT EVALUATION
 

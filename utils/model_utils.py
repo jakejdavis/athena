@@ -3,6 +3,7 @@ import re
 
 import tensorflow as tf
 from keras.losses import binary_crossentropy, categorical_crossentropy
+from keras.models import Sequential
 
 layer_regexes = {
     "FC": re.compile("dense*"),
@@ -22,10 +23,13 @@ def is_classification(model):
     return model.loss in [binary_crossentropy, categorical_crossentropy]
 
 
-TEMP_MODEL_PATH = "temp_model.h5"
+TEMP_MODEL_PATH = "cache/safe_clone_model.h5"
 
 
-def safe_clone_model(model):
+def safe_clone_model(model: Sequential) -> Sequential:
+    """
+    Clone a model and its weights by saving it to disk and loading it again.
+    """
     model.save(TEMP_MODEL_PATH)
 
     cloned_model = tf.keras.models.load_model(TEMP_MODEL_PATH)

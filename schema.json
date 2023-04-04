@@ -1,0 +1,97 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "title": "Athena configuration schema",
+    "type": "object",
+    "properties": {
+        "cache": {
+            "type": "boolean",
+            "description": "Whether to cache input/outputs or generated mutants"
+        },
+        "operator": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the operator to use"
+                },
+                "localisation": {
+                    "type": "string",
+                    "description": "Localisation algorithm to use"
+                },
+                "searcher": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Name of the searcher to use"
+                        },
+                        "workers": {
+                            "type": "integer",
+                            "description": "Number of workers to use"
+                        },
+                        "fitness": {
+                            "type": "object",
+                            "properties": {
+                                "alpha": {
+                                    "type": "number",
+                                    "description": "Alpha weighting between positive and negative inputs"
+                                },
+                                "trivial_weighting": {
+                                    "type": "number",
+                                    "description": "Weighting between trivial and non-trivial inputs"
+                                }
+                            }
+                        },
+                        "plot": {
+                            "type": "object",
+                            "properties": {
+                                "show": {
+                                    "type": "boolean",
+                                    "description": "Whether to show the plot"
+                                },
+                                "initial_fitness": {
+                                    "type": "boolean",
+                                    "description": "Whether to plot the initial fitness"
+                                }
+                            }
+                        },
+                        "bounds_dist": {
+                            "type": "integer",
+                            "description": "Minimum and maximum value for weights"
+                        },
+                        "maxiter": {
+                            "type": "integer",
+                            "description": "Maximum number of iterations"
+                        },
+                        "popsize": {
+                            "type": "integer",
+                            "description": "Population size"
+                        },
+                        "tol": {
+                            "type": "number",
+                            "description": "Tolerance for convergence"
+                        }
+                    }
+                }
+            }
+        },
+        "evaluate": {
+            "type": "object",
+            "properties": {
+                "iterations": {
+                    "type": "integer",
+                    "description": "Number of iterations to run"
+                }
+            }
+        },
+        "test_set": {
+            "type": "object",
+            "properties": {
+                "accuracy_threshold": {
+                    "type": "number",
+                    "description": "Accuracy threshold for the test set"
+                }
+            }
+        }
+    }
+}

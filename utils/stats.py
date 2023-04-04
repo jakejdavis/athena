@@ -8,7 +8,7 @@ import statsmodels.api as sm
 
 def cohen_d(orig_accuracy_list, accuracy_list):
     """
-    Calculates cohen's kappa value.
+    Calculates cohen's d value.
     """
     nx = len(orig_accuracy_list)
     ny = len(accuracy_list)

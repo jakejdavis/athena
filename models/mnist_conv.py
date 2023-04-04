@@ -41,8 +41,7 @@ class MNISTConvModel(Model):
 
         return (x_train, y_train), (x_test, y_test)
 
-    def train(self, model_name: str) -> Sequential:
-        logging.info("Training model %s", model_name)
+    def train(self) -> Sequential:
 
         (x_train, y_train), (x_test, y_test) = self.generate_training_data()
 
@@ -75,7 +74,7 @@ class MNISTConvModel(Model):
             verbose=1,
             validation_data=(x_test, y_test),
         )
-        # model.save(os.path.join("trained_models", model_name + "_trained.h5"))
+
         score = model.evaluate(x_train, y_train, verbose=0)
 
         logging.info("Train loss: %s", score[0])

@@ -34,9 +34,7 @@ class FashionMNISTModel(Model):
 
         return (x_train, y_train), (x_test, y_test)
 
-    def train(self, model_name: str) -> Sequential:
-        logging.info("Training model %s", model_name)
-
+    def train(self) -> Sequential:
         (x_train, y_train), (x_test, y_test) = self.generate_training_data()
 
         batch_size = 2048

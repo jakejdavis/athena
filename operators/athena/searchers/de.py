@@ -116,7 +116,7 @@ def fitness(
 
     total_fitness = fitness_score(new_model, pos, neg, alpha)
 
-    # Maxmimise fitness of outputs not being targetted
+    # Maximise fitness of outputs not being targeted
     if pos_trivial is not None:
         trivial_fitness = -fitness_score(new_model, neg_trivial, pos_trivial, alpha)
         total_fitness = (
