@@ -51,7 +51,7 @@ evaluate_mnist_conv_mp:
 	@python main.py evaluate mnist_conv --specific-output $(specific-output) --verbose --additional-config config/athena/athena_multiprocessing.json
 
 evaluate_imdb_mp:
-	@python main.py evaluate imdb --specific-output $(specific-output) --verbose --additional-config config/athena/athena_multiprocessing_no_trivial.json
+	@python main.py evaluate imdb --specific-output $(specific-output) --verbose --additional-config config/athena/athena_multiprocessing_no_generic.json
 
 
 evaluate_all_mp:

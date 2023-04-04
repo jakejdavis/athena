@@ -87,7 +87,7 @@ class MNISTConvModel(Model):
         model: Sequential,
         n: int = 20,
         specific_output: int = None,
-        trivial: bool = False,
+        generic: bool = False,
     ):
         logging.info("Generating %d positive and negative examples..." % n)
 
@@ -104,7 +104,7 @@ class MNISTConvModel(Model):
         o_neg = []
 
         if specific_output is not None:
-            if trivial:
+            if generic:
                 inputs = inputs[outputs != specific_output]
                 outputs = outputs[outputs != specific_output]
             else:
@@ -148,14 +148,14 @@ class MNISTConvModel(Model):
         return (np.array(i_pos), np.array(o_pos)), (np.array(i_neg), np.array(o_neg))
 
     def generate_evaluation_data(
-        self, specific_output: int = None, trivial: bool = False
+        self, specific_output: int = None, generic: bool = False
     ):
         logging.info("Generating evaluation data...")
 
         (_, _), (x_test, y_test) = keras.datasets.mnist.load_data()
 
         if specific_output is not None:
-            if trivial:
+            if generic:
                 x_test = x_test[y_test != specific_output]
                 y_test = y_test[y_test != specific_output]
             else:

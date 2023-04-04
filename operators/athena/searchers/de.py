@@ -79,10 +79,10 @@ def fitness(
     model: Union[Sequential, str],
     pos,
     neg,
-    pos_trivial,
-    neg_trivial,
+    pos_generic,
+    neg_generic,
     weights_to_target: List[Tuple[int64, Tuple[int64, int64]]],
-    trivial_weighting: float,
+    generic_weighting: float,
     alpha: float,
 ) -> ndarray:
     """
@@ -92,10 +92,10 @@ def fitness(
     :param model: Model to apply weights to
     :param pos: Positive inputs and outputs
     :param neg: Negative inputs and outputs
-    :param pos_trivial: Positive trivial inputs and outputs
-    :param neg_trivial: Negative trivial inputs and outputs
+    :param pos_generic: Positive generic inputs and outputs
+    :param neg_generic: Negative generic inputs and outputs
     :param weights_to_target: Weights to target
-    :param trivial_weighting: Weighting of trivial fitness
+    :param generic_weighting: Weighting of generic fitness
     :param alpha: Weighting of negative fitness
     """
 
@@ -117,11 +117,11 @@ def fitness(
     total_fitness = fitness_score(new_model, pos, neg, alpha)
 
     # Maximise fitness of outputs not being targeted
-    if pos_trivial is not None:
-        trivial_fitness = -fitness_score(new_model, neg_trivial, pos_trivial, alpha)
+    if pos_generic is not None:
+        generic_fitness = -fitness_score(new_model, neg_generic, pos_generic, alpha)
         total_fitness = (
-            trivial_weighting * trivial_fitness
-            + (1 - trivial_weighting) * total_fitness
+            generic_weighting * generic_fitness
+            + (1 - generic_weighting) * total_fitness
         )
 
     return total_fitness
@@ -152,7 +152,7 @@ class DE(Searcher):
         self,
         model: Sequential,
         data: Tuple[Tuple[ndarray, ndarray], Tuple[ndarray, ndarray]],
-        trivial_data: Tuple[Tuple[ndarray, ndarray], Tuple[ndarray, ndarray]],
+        generic_data: Tuple[Tuple[ndarray, ndarray], Tuple[ndarray, ndarray]],
         weights_to_target: List[Tuple[int, Tuple[int64, int64]]],
         additional_config: dict = None,
         workers: int = -1,
@@ -160,7 +160,7 @@ class DE(Searcher):
         super().__init__(model)
 
         self.pos, self.neg = data
-        self.trivial_pos, self.trivial_neg = trivial_data
+        self.generic_pos, self.generic_neg = generic_data
         self.weights_to_target = weights_to_target
         self.workers = workers
         self.additional_config = additional_config
@@ -169,9 +169,9 @@ class DE(Searcher):
             self.additional_config, "operator.searcher.fitness.alpha", 0.8, float
         )
 
-        self.trivial_weighting = get_config_val(
+        self.generic_weighting = get_config_val(
             self.additional_config,
-            "operator.searcher.fitness.trivial_weighting",
+            "operator.searcher.fitness.generic_weighting",
             0.5,
             float,
         )
@@ -198,10 +198,10 @@ class DE(Searcher):
                     self.model,
                     self.pos,
                     self.neg,
-                    self.trivial_pos,
-                    self.trivial_neg,
+                    self.generic_pos,
+                    self.generic_neg,
                     self.weights_to_target,
-                    self.trivial_weighting,
+                    self.generic_weighting,
                     self.alpha,
                 )
 
@@ -228,10 +228,10 @@ class DE(Searcher):
             self.model,
             self.pos,
             self.neg,
-            self.trivial_pos,
-            self.trivial_neg,
+            self.generic_pos,
+            self.generic_neg,
             self.weights_to_target,
-            self.trivial_weighting,
+            self.generic_weighting,
             self.alpha,
         )
         logger = logging.getLogger("athena")
@@ -306,10 +306,10 @@ class DE(Searcher):
                 self.TEMP_MODEL_PATH if self.workers != 1 else self.model,
                 self.pos,
                 self.neg,
-                self.trivial_pos,
-                self.trivial_neg,
+                self.generic_pos,
+                self.generic_neg,
                 self.weights_to_target,
-                self.trivial_weighting,
+                self.generic_weighting,
                 self.alpha,
             ),
         )

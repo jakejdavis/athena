@@ -6,7 +6,7 @@
         "name": "de",
         "workers": -1,
         "fitness": {
-          "trivial_weighting": 0.8,
+          "generic_weighting": 0.8,
           "alpha": 0.8
         },
         "maxiter": 100,

@@ -7,7 +7,7 @@
         "workers": 1,
         "graph": true,
         "fitness": {
-          "trivial_weighting": 0.8,
+          "generic_weighting": 0.8,
           "alpha": 0.8
         }
       }

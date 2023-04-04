@@ -76,37 +76,37 @@ def _generate(
     input_outputs_path = os.path.join(CACHE_DIR, subject_name + "_input_outputs.pkl")
 
     specific_output_int = None
-    pos_trivial = None
-    neg_trivial = None
+    pos_generic = None
+    neg_generic = None
     if specific_output is not None:
         input_outputs_path = os.path.join(
             CACHE_DIR, subject_name + "_input_outputs_" + specific_output + ".pkl"
         )
-        input_outputs_trivial_path = os.path.join(
+        input_outputs_generic_path = os.path.join(
             CACHE_DIR,
-            subject_name + "_input_outputs_trivial_" + specific_output + ".pkl",
+            subject_name + "_input_outputs_generic_" + specific_output + ".pkl",
         )
         specific_output_int = int(specific_output)
 
-        if not os.path.exists(input_outputs_trivial_path) or not use_cache:
+        if not os.path.exists(input_outputs_generic_path) or not use_cache:
             logging.info(
-                "Generating trivial inputs and outputs"
+                "Generating generic inputs and outputs"
                 + (" for specific output" if specific_output is not None else "")
             )
-            pos_trivial, neg_trivial = model_utils.generate_inputs_outputs(
-                model, specific_output=specific_output_int, trivial=True
+            pos_generic, neg_generic = model_utils.generate_inputs_outputs(
+                model, specific_output=specific_output_int, generic=True
             )
 
             if use_cache:
                 pickle.dump(
-                    (pos_trivial, neg_trivial), open(input_outputs_trivial_path, "wb")
+                    (pos_generic, neg_generic), open(input_outputs_generic_path, "wb")
                 )
         else:
             logging.info(
-                f"Using cached trivial inputs and outputs from {input_outputs_trivial_path}"
+                f"Using cached generic inputs and outputs from {input_outputs_generic_path}"
             )
-            pos_trivial, neg_trivial = pickle.load(
-                open(input_outputs_trivial_path, "rb")
+            pos_generic, neg_generic = pickle.load(
+                open(input_outputs_generic_path, "rb")
             )
 
     if not os.path.exists(input_outputs_path) or not use_cache:
@@ -140,8 +140,8 @@ def _generate(
     patched_model = operator(
         pos,
         neg,
-        pos_trivial=pos_trivial,
-        neg_trivial=neg_trivial,
+        pos_generic=pos_generic,
+        neg_generic=neg_generic,
     )
     time_to_generate = time.time() - time_start
 
@@ -233,11 +233,11 @@ def run(
         specific_output_int = int(specific_output)
 
     inputs, outputs = model_utils.generate_evaluation_data(
-        specific_output=specific_output_int, trivial=False
+        specific_output=specific_output_int, generic=False
     )
 
-    trivial_inputs, trivial_outputs = model_utils.generate_evaluation_data(
-        specific_output=specific_output_int, trivial=True
+    generic_inputs, generic_outputs = model_utils.generate_evaluation_data(
+        specific_output=specific_output_int, generic=True
     )
 
     tests = {
@@ -246,7 +246,7 @@ def run(
             "pass": lambda x: test_set.test_passed(x),
         },
         "Non-mutated model excluding specific output": {
-            "value": test_set.run(model, trivial_inputs, trivial_outputs),
+            "value": test_set.run(model, generic_inputs, generic_outputs),
             "pass": lambda x: test_set.test_passed(x),
         },
         "Mutated model for specific output": {
@@ -254,7 +254,7 @@ def run(
             "pass": lambda x: not test_set.test_passed(x),
         },
         "Mutated model excluding specific output": {
-            "value": test_set.run(patched_model, trivial_inputs, trivial_outputs),
+            "value": test_set.run(patched_model, generic_inputs, generic_outputs),
             "pass": lambda x: test_set.test_passed(x),
         },
     }
@@ -360,8 +360,8 @@ def evaluate(
     original_model_accuracy = []
     patched_model_accuracy = []
 
-    original_model_accuracy_trivial = []
-    patched_model_accuracy_trivial = []
+    original_model_accuracy_generic = []
+    patched_model_accuracy_generic = []
 
     times_to_generate = []
 
@@ -412,7 +412,7 @@ def evaluate(
             specific_output_int = int(specific_output)
 
         inputs, outputs = model_utils.generate_evaluation_data(
-            specific_output=specific_output_int, trivial=False
+            specific_output=specific_output_int, generic=False
         )
 
         original_model_accuracy.append(model.evaluate(inputs, outputs, verbose=0)[1])
@@ -420,32 +420,32 @@ def evaluate(
             patched_model.evaluate(inputs, outputs, verbose=0)[1]
         )
 
-        trivial_inputs, trivial_outputs = model_utils.generate_evaluation_data(
-            specific_output=specific_output_int, trivial=True
+        generic_inputs, generic_outputs = model_utils.generate_evaluation_data(
+            specific_output=specific_output_int, generic=True
         )
 
-        original_model_accuracy_trivial.append(
-            model.evaluate(trivial_inputs, trivial_outputs, verbose=0)[1]
+        original_model_accuracy_generic.append(
+            model.evaluate(generic_inputs, generic_outputs, verbose=0)[1]
         )
-        patched_model_accuracy_trivial.append(
-            patched_model.evaluate(trivial_inputs, trivial_outputs, verbose=0)[1]
+        patched_model_accuracy_generic.append(
+            patched_model.evaluate(generic_inputs, generic_outputs, verbose=0)[1]
         )
 
         logging.info(f"Iteration complete (took {times_to_generate[-1]} seconds)")
         logging.info(f"- Original model accuracy: {original_model_accuracy[-1]}")
         logging.info(f"- Patched model accuracy: {patched_model_accuracy[-1]}")
         logging.info(
-            f"- Original model accuracy (trivial): {original_model_accuracy_trivial[-1]}"
+            f"- Original model accuracy (generic): {original_model_accuracy_generic[-1]}"
         )
         logging.info(
-            f"- Patched model accuracy (trivial): {patched_model_accuracy_trivial[-1]}"
+            f"- Patched model accuracy (generic): {patched_model_accuracy_generic[-1]}"
         )
 
     original_model_accuracy = np.array(original_model_accuracy)
     patched_model_accuracy = np.array(patched_model_accuracy)
 
-    original_model_accuracy_trivial = np.array(original_model_accuracy_trivial)
-    patched_model_accuracy_trivial = np.array(patched_model_accuracy_trivial)
+    original_model_accuracy_generic = np.array(original_model_accuracy_generic)
+    patched_model_accuracy_generic = np.array(patched_model_accuracy_generic)
 
     try:
         is_significant, p_value, effect_size = utils.stats.is_significant(
@@ -471,8 +471,8 @@ def evaluate(
             {
                 "original_model_accuracy": original_model_accuracy.tolist(),
                 "patched_model_accuracy": patched_model_accuracy.tolist(),
-                "original_model_accuracy_trivial": original_model_accuracy_trivial.tolist(),
-                "patched_model_accuracy_trivial": patched_model_accuracy_trivial.tolist(),
+                "original_model_accuracy_generic": original_model_accuracy_generic.tolist(),
+                "patched_model_accuracy_generic": patched_model_accuracy_generic.tolist(),
                 "time_to_generate": times_to_generate,
                 "p_value": p_value,
                 "effect_size": effect_size,

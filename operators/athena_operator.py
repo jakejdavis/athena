@@ -21,16 +21,16 @@ class AthenaOperator(Operator):
         self,
         pos: tuple,
         neg: tuple,
-        pos_trivial: tuple = None,
-        neg_trivial: tuple = None,
+        pos_generic: tuple = None,
+        neg_generic: tuple = None,
     ) -> Sequential:
         """
         Generate a patch for the model using the given positive and negative examples.
 
         :param pos: Positive examples
         :param neg: Negative examples
-        :param pos_trivial: Trivial positive examples
-        :param neg_trivial: Trivial negative examples
+        :param pos_generic: generic positive examples
+        :param neg_generic: generic negative examples
         """
         assert self.model is not None, "Model not found"
         assert isinstance(self.model.loss, Callable), "Model loss not callable"
@@ -70,7 +70,7 @@ class AthenaOperator(Operator):
             patch_searcher = searchers.DE(
                 model_copy,
                 (pos, neg),
-                (pos_trivial, neg_trivial),
+                (pos_generic, neg_generic),
                 patch,
                 self.additional_config,
                 workers,

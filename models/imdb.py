@@ -64,7 +64,7 @@ class IMDBModel(Model):
         model: Sequential,
         n: int = 20,
         specific_output: int = None,
-        trivial: bool = False,
+        generic: bool = False,
     ):
         logging.info("Generating %d positive and negative examples..." % n)
         inputs, outputs = keras.datasets.imdb.load_data(num_words=NUM_WORDS)[1]
@@ -77,7 +77,7 @@ class IMDBModel(Model):
         o_neg = []
 
         if specific_output is not None:
-            if trivial:
+            if generic:
                 inputs = inputs[outputs != specific_output]
                 outputs = outputs[outputs != specific_output]
             else:
@@ -123,7 +123,7 @@ class IMDBModel(Model):
         return (np.array(i_pos), np.array(o_pos)), (np.array(i_neg), np.array(o_neg))
 
     def generate_evaluation_data(
-        self, specific_output: int = None, trivial: bool = False
+        self, specific_output: int = None, generic: bool = False
     ):
         logging.info("Generating evaluation data...")
 
@@ -131,7 +131,7 @@ class IMDBModel(Model):
         x_test = keras.utils.pad_sequences(x_test, maxlen=MAX_LEN)
 
         if specific_output is not None:
-            if trivial:
+            if generic:
                 x_test = x_test[y_test != specific_output]
                 y_test = y_test[y_test != specific_output]
             else:

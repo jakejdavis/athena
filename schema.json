@@ -36,9 +36,9 @@
                                     "type": "number",
                                     "description": "Alpha weighting between positive and negative inputs"
                                 },
-                                "trivial_weighting": {
+                                "generic_weighting": {
                                     "type": "number",
-                                    "description": "Weighting between trivial and non-trivial inputs"
+                                    "description": "Weighting between generic and non-generic inputs"
                                 }
                             }
                         },
