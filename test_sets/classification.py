@@ -4,10 +4,12 @@ from tensorflow.keras.models import Sequential
 
 import utils.config
 
-from .test_set import TestSet
+from .test_case import TestCase, TestSet
 
 
-class ClassificationTestSet(TestSet):
+class ClassificationTestCase(TestCase):
+    name = "Example classification test case"
+
     def __init__(self, additional_config) -> None:
         super().__init__(additional_config)
 
@@ -20,3 +22,9 @@ class ClassificationTestSet(TestSet):
                 self.additional_config, "test_set.accuracy_threshold", 0.8
             )
         )
+
+
+class ClassificationTestSet(TestSet):
+    def __init__(self, additional_config) -> None:
+        self.additional_config = additional_config
+        self.test_cases = [ClassificationTestCase(additional_config)]

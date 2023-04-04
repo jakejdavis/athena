@@ -5,7 +5,7 @@ from numpy import ndarray
 from tensorflow.keras.models import Sequential
 
 
-class TestSet(ABC):
+class TestCase(ABC):
     def __init__(self, additional_config) -> None:
         self.additional_config = additional_config
 
@@ -16,3 +16,12 @@ class TestSet(ABC):
     @abstractmethod
     def test_passed(self, test_result: float) -> bool:
         raise NotImplementedError
+
+
+class TestSet(ABC):
+    def __init__(self, additional_config, test_cases) -> None:
+        self.additional_config = additional_config
+        self.test_cases = test_cases
+
+    def get_test_cases(self) -> list:
+        return self.test_cases
