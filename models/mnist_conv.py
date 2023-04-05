@@ -91,7 +91,6 @@ class MNISTConvModel(Model):
     ):
         logging.info("Generating %d positive and negative examples..." % n)
 
-        # TODO: compare between training/test data (better to use test but is there enough for a specific output?)
         inputs, outputs = keras.datasets.mnist.load_data()[1]
 
         inputs = inputs.reshape(inputs.shape[0], self.img_rows, self.img_cols)

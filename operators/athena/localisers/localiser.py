@@ -83,7 +83,6 @@ class Localiser(ABC):
                     final_output, layer_output = new_model(input_chunk)
 
                 gradients = tape.gradient(final_output, layer_output)
-                lol = gradients.numpy()
                 gradient[chunk] = gradients.numpy()
 
             gradient = np.abs(gradient)

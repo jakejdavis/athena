@@ -146,8 +146,6 @@ class DE(Searcher):
     fitness on negative inputs and keeps the fitness on positive inputs the same.
     """
 
-    TEMP_MODEL_PATH = "cache/model_mp.h5"
-
     def __init__(
         self,
         model: Sequential,
@@ -213,7 +211,14 @@ class DE(Searcher):
             self.fitness_plot.update(None)
             self.fitness_plot.join()
 
-        os.remove(self.TEMP_MODEL_PATH)
+        temp_model_path = get_config_val(
+            self.additional_config,
+            "operator.searcher.temp_model_path",
+            "cache/model_mp.h5",
+            str,
+        )
+        if os.path.exists(temp_model_path):
+            os.remove(temp_model_path)
 
     def callback_print(self, Xi, convergence):
         """
@@ -270,11 +275,17 @@ class DE(Searcher):
         )
 
         if self.workers != 1:
-            if os.path.exists(self.TEMP_MODEL_PATH):
-                os.remove(self.TEMP_MODEL_PATH)
+            temp_model_path = get_config_val(
+                self.additional_config,
+                "operator.searcher.temp_model_path",
+                "cache/model_mp.h5",
+                str,
+            )
+            if os.path.exists(temp_model_path):
+                os.remove(temp_model_path)
             else:
-                os.makedirs(os.path.dirname(self.TEMP_MODEL_PATH), exist_ok=True)
-            self.model.save(self.TEMP_MODEL_PATH)
+                os.makedirs(os.path.dirname(temp_model_path), exist_ok=True)
+            self.model.save(temp_model_path)
 
         initial_weights = np.array(
             [
@@ -303,7 +314,7 @@ class DE(Searcher):
             updating="deferred",
             callback=self.callback_print,
             args=(
-                self.TEMP_MODEL_PATH if self.workers != 1 else self.model,
+                temp_model_path if temp_model_path is not None else self.model,
                 self.pos,
                 self.neg,
                 self.generic_pos,

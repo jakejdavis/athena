@@ -1,3 +1,4 @@
+import logging
 from typing import Iterable
 
 import numpy as np
@@ -37,7 +38,6 @@ class C2DLocaliser(Localiser):
 
         inputs, _ = inputs_outputs
         layer_config = self.model.layers[self.layer_index].get_config()
-
         is_channel_first = layer_config["data_format"] == "channels_first"
         if self.layer_index == 0:
             new_shape = inputs.shape + (1,)
@@ -88,7 +88,7 @@ class C2DLocaliser(Localiser):
                 if len(paddings) == 1:
                     paddings = [paddings[0], paddings[0]]
             else:
-                print("padding type: {} not supported".format(padding_type))
+                logging.error("Padding type: {} not supported".format(padding_type))
                 paddings = [0, 0]
                 assert False
 

@@ -34,8 +34,9 @@ def evaluate(
     original_model_accuracy = []
     patched_model_accuracy = []
 
-    original_model_accuracy_generic = []
-    patched_model_accuracy_generic = []
+    if specific_output is not None:
+        original_model_accuracy_generic = []
+        patched_model_accuracy_generic = []
 
     times_to_generate = []
 
@@ -46,13 +47,13 @@ def evaluate(
             EVALUATION_DIR,
             "models",
             "original",
-            f"{subject_name}_{specific_output}_{i}.h5",
+            f"{subject_name}{'_' + specific_output if specific_output is not None else ''}.h5",
         )
         patched_model_path = os.path.join(
             EVALUATION_DIR,
             "models",
             "mutants",
-            f"{subject_name}_{specific_output}_{i}.h5",
+            f"{subject_name}{'_' + specific_output if specific_output is not None else ''}_{i}.h5",
         )
 
         model_utils = models.get_model(subject_name)(additional_config)
@@ -82,7 +83,7 @@ def evaluate(
 
         times_to_generate.append(time_to_generate)
 
-        # evaluate model and patched_model and calculate effect size
+        # Evaluate model and patched_model and calculate effect size
         specific_output_int = None
         if specific_output is not None:
             specific_output_int = int(specific_output)
@@ -100,28 +101,30 @@ def evaluate(
             specific_output=specific_output_int, generic=True
         )
 
-        original_model_accuracy_generic.append(
-            model.evaluate(generic_inputs, generic_outputs, verbose=0)[1]
-        )
-        patched_model_accuracy_generic.append(
-            patched_model.evaluate(generic_inputs, generic_outputs, verbose=0)[1]
-        )
-
         logging.info(f"Iteration complete (took {times_to_generate[-1]} seconds)")
         logging.info(f"- Original model accuracy: {original_model_accuracy[-1]}")
         logging.info(f"- Patched model accuracy: {patched_model_accuracy[-1]}")
-        logging.info(
-            f"- Original model accuracy (generic): {original_model_accuracy_generic[-1]}"
-        )
-        logging.info(
-            f"- Patched model accuracy (generic): {patched_model_accuracy_generic[-1]}"
-        )
+
+        if specific_output is not None:
+            original_model_accuracy_generic.append(
+                model.evaluate(generic_inputs, generic_outputs, verbose=0)[1]
+            )
+            patched_model_accuracy_generic.append(
+                patched_model.evaluate(generic_inputs, generic_outputs, verbose=0)[1]
+            )
+            logging.info(
+                f"- Original model accuracy (generic): {original_model_accuracy_generic[-1]}"
+            )
+            logging.info(
+                f"- Patched model accuracy (generic): {patched_model_accuracy_generic[-1]}"
+            )
 
     original_model_accuracy = np.array(original_model_accuracy)
     patched_model_accuracy = np.array(patched_model_accuracy)
 
-    original_model_accuracy_generic = np.array(original_model_accuracy_generic)
-    patched_model_accuracy_generic = np.array(patched_model_accuracy_generic)
+    if specific_output is not None:
+        original_model_accuracy_generic = np.array(original_model_accuracy_generic)
+        patched_model_accuracy_generic = np.array(patched_model_accuracy_generic)
 
     try:
         is_significant, p_value, effect_size = utils.stats.is_significant(
@@ -142,13 +145,20 @@ def evaluate(
         effect_size = None
 
     # Save evaluation to file
-    with open(f"evaluation/{subject_name}_evaluation_{specific_output}.json", "w") as f:
+    with open(
+        f"evaluation/{subject_name}_evaluation{'_' + specific_output if specific_output is not None else ''}.json",
+        "w",
+    ) as f:
         json.dump(
             {
                 "original_model_accuracy": original_model_accuracy.tolist(),
                 "patched_model_accuracy": patched_model_accuracy.tolist(),
-                "original_model_accuracy_generic": original_model_accuracy_generic.tolist(),
-                "patched_model_accuracy_generic": patched_model_accuracy_generic.tolist(),
+                "original_model_accuracy_generic": original_model_accuracy_generic.tolist()
+                if specific_output is not None
+                else None,
+                "patched_model_accuracy_generic": patched_model_accuracy_generic.tolist()
+                if specific_output is not None
+                else None,
                 "time_to_generate": times_to_generate,
                 "p_value": p_value,
                 "effect_size": effect_size,

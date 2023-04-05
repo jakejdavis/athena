@@ -44,17 +44,16 @@ run_all_mp:
 
 # EVALUATION
 
-evaluate_fashionmnist_mp:
+evaluate_fashionmnist_mp_specific:
 	@python main.py evaluate fashionmnist --specific-output $(specific-output) --verbose --additional-config config/athena/athena_multiprocessing.json
 
-evaluate_mnist_conv_mp:
+evaluate_mnist_conv_mp_specific:
 	@python main.py evaluate mnist_conv --specific-output $(specific-output) --verbose --additional-config config/athena/athena_multiprocessing.json
 
-evaluate_imdb_mp:
+evaluate_imdb_mp_specific:
 	@python main.py evaluate imdb --specific-output $(specific-output) --verbose --additional-config config/athena/athena_multiprocessing_no_generic.json
 
-
-evaluate_all_mp:
+evaluate_all_mp_specific:
 	@make evaluate_mnist_conv_mp specific-output=0
 	@make evaluate_fashionmnist_mp specific-output=0
 	@make evaluate_imdb_mp specific-output=0
@@ -62,22 +61,38 @@ evaluate_all_mp:
 	@make evaluate_fashionmnist_mp specific-output=1
 	@make evaluate_imdb_mp specific-output=1
 
-# PLOT EVALUATION
 
-plot_evaluation:
-	@python evaluation/generate_figures.py
 
-# FIGURES
+evaluate_fashionmnist_mp_fast:
+	@python main.py evaluate fashionmnist --verbose --additional-config config/athena/athena_multiprocessing_fast.json
 
-make_figures:
-	pyreverse models -o puml --output-directory ./figures
-	cat figures/classes.puml | java -jar plant/plantuml.jar -tpdf -pipe > figures/models.pdf
-	pyreverse operators -o puml --output-directory ./figures
-	cat figures/classes.puml | java -jar plant/plantuml.jar -tpdf -pipe > figures/operators.pdf
-	pyreverse mutants.operators.athena.localisers -o puml --output-directory ./figures
-	cat figures/classes.puml | java -jar plant/plantuml.jar -tpdf -pipe > figures/localisers.pdf
-	pyreverse mutants.operators.athena.searchers -o puml --output-directory ./figures
-	cat figures/classes.puml | java -jar plant/plantuml.jar -tpdf -pipe > figures/searchers.pdf
+evaluate_mnist_conv_mp_fast:
+	@python main.py evaluate mnist_conv --verbose --additional-config config/athena/athena_multiprocessing_fast.json
+
+evaluate_imdb_mp_fast:
+	@python main.py evaluate imdb --verbose --additional-config config/athena/athena_multiprocessing_fast.json
+
+evaluate_all_mp_fast:
+	@make evaluate_mnist_conv_mp_fast
+	@make evaluate_fashionmnist_mp_fast
+	@make evaluate_imdb_mp_fast
+
+
+
+evaluate_fashionmnist_mp:
+	@python main.py evaluate fashionmnist --verbose --additional-config config/athena/athena_multiprocessing.json
+
+evaluate_mnist_conv_mp:
+	@python main.py evaluate mnist_conv --verbose --additional-config config/athena/athena_multiprocessing.json
+
+evaluate_imdb_mp:
+	@python main.py evaluate imdb --verbose --additional-config config/athena/athena_multiprocessing.json
+
+evaluate_all_mp:
+	@make evaluate_mnist_conv_mp
+	@make evaluate_fashionmnist_mp
+	@make evaluate_imdb_mp
+
 
 autotype:
 	monkeytype run main.py run fashionmnist fashionmnist
