@@ -94,19 +94,6 @@ evaluate_all_mp:
 	@make evaluate_imdb_mp
 
 
-# ENVIROMENTS
-
-env_mac:
-	CONDA_SUBDIR=osx-arm64 conda create -n athena python=3.9
-	conda activate athena
-	pip install -r requirements.macos.txt
-
-env: 	
-	conda create -n athena python=3.9
-	conda activate athena
-	pip install -r requirements.txt
-
-
 autotype:
 	monkeytype run main.py run fashionmnist fashionmnist
 	monkeytype list-modules | xargs -n1 -I{} sh -c 'monkeytype apply {}'
