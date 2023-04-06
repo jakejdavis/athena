@@ -5,12 +5,15 @@
       "searcher": {
         "name": "de",
         "workers": 1,
+        "fitness": {
+          "alpha": 0.8
+        },
+        "maxiter": 25,
+        "popsize": 100,
+        "tol": 0.001,
+        "bounds_dist": 1,
         "plot": {
           "show": true
-        },
-        "fitness": {
-          "generic_weighting": 0.8,
-          "alpha": 0.8
         }
       }
     }

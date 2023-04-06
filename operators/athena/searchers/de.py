@@ -273,6 +273,7 @@ class DE(Searcher):
             optimizer=self.model.optimizer, loss=self.model.loss, metrics=["accuracy"]
         )
 
+        temp_model_path = None
         if self.workers != 1:
             temp_model_path = get_config_val(
                 self.additional_config,
