@@ -3,7 +3,7 @@ import logging
 import sys
 from typing import Type
 
-from test_sets.test_case import TestCase, TestSet
+from test_sets.test_case import TestSet
 
 from .classification import ClassificationTestSet
 

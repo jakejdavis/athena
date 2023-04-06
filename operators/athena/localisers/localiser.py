@@ -6,7 +6,7 @@ import numpy as np
 import tensorflow as tf
 from keras.engine.sequential import Sequential
 from keras.layers import Normalization
-from keras.losses import binary_crossentropy, categorical_crossentropy, mae, mse
+from keras.losses import binary_crossentropy, categorical_crossentropy
 from numpy import ndarray
 from sklearn.preprocessing import Normalizer
 from tensorflow.keras.models import Model

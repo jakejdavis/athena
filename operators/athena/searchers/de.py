@@ -11,7 +11,6 @@ from numpy import int64, ndarray
 from scipy.optimize import differential_evolution
 
 from utils.config import get_config_val
-from utils.model_utils import is_classification
 
 from .fitness_plotter import FitnessPlotter
 from .searcher import Searcher

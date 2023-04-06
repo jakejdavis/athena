@@ -10,12 +10,14 @@ import utils.config
 import utils.model_utils
 import utils.stats
 
+from .generate import generate
+
 TRAINED_MODELS_DIR = "trained_models"
 EVALUATION_DIR = "evaluation"
 CACHE_DIR = "cache"
 
 
-def run_command(
+def run(
     subject_name,
     test_set,
     trained_models_dir,
@@ -41,7 +43,7 @@ def run_command(
         patched_model = keras.models.load_model(patched_model_path)
     else:
         logging.info("Generating patched model")
-        model, patched_model, _ = _generate(
+        model, patched_model, _ = generate(
             subject_name,
             trained_models_dir,
             mutants_dir,
@@ -121,7 +123,7 @@ def run_command(
 
     mutation_score = mutants_killed / len(test_set.test_cases)
     logging.info(f"Mutation score: {mutation_score}/{len(test_set.test_cases)}")
-    run_file = utils.config.get_config_val(additional_config, "run_file", "run.json")
+    run_file = utils.config.get_config_val(additional_config, "run.output", "run.json")
 
     with open(run_file, "w") as f:
         json.dump(

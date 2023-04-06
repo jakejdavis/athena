@@ -92,6 +92,13 @@
                     "description": "Accuracy threshold for the test set"
                 }
             }
+        },
+        "run": {
+            "type": "object",
+            "output": {
+                "type": "string",
+                "description": "Filename to write JSON mutation test run results to"
+            }
         }
     }
 }

@@ -1,5 +1,3 @@
-import logging
-import sys
 from typing import Type
 
 from .c2d import C2DLocaliser

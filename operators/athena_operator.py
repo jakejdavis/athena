@@ -2,8 +2,6 @@ import logging
 from typing import Callable
 
 from keras.engine.sequential import Sequential
-from keras.models import clone_model
-from numpy import ndarray
 
 from utils.config import get_config_val
 from utils.model_utils import safe_clone_model

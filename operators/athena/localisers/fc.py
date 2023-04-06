@@ -1,7 +1,6 @@
 import logging
 
 import numpy as np
-import tensorflow as tf
 from keras.engine.sequential import Sequential
 from numpy import ndarray
 from sklearn.preprocessing import Normalizer

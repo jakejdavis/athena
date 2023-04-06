@@ -9,7 +9,11 @@ import statsmodels.api as sm
 def cohen_d(orig_accuracy_list, accuracy_list):
     """
     Calculates cohen's d value.
+
+    :param orig_accuracy_list: original accuracy list
+    :param accuracy_list: accuracy list to compare to
     """
+
     nx = len(orig_accuracy_list)
     ny = len(accuracy_list)
     dof = nx + ny - 2
@@ -21,10 +25,18 @@ def cohen_d(orig_accuracy_list, accuracy_list):
         / dof
     )
     result = (np.mean(orig_accuracy_list) - np.mean(accuracy_list)) / pooled_std
+
     return result
 
 
 def is_significant(orig_accuracy_list, accuracy_list, threshold=0.05):
+    """
+    Calculates if the difference between the two accuracy lists is significant.
+
+    :param orig_accuracy_list: original accuracy list
+    :param accuracy_list: accuracy list to compare to
+    :param threshold: threshold for significance
+    """
 
     p_value = p_value_glm(orig_accuracy_list, accuracy_list)
     effect_size = cohen_d(orig_accuracy_list, accuracy_list)
@@ -34,6 +46,13 @@ def is_significant(orig_accuracy_list, accuracy_list, threshold=0.05):
 
 
 def p_value_glm(orig_accuracy_list, accuracy_list):
+    """
+    Calculates p-value using GLM.
+
+    :param orig_accuracy_list: original accuracy list
+    :param accuracy_list: accuracy list to compare to
+    """
+
     list_length = len(orig_accuracy_list)
 
     zeros_list = np.zeros(list_length)
