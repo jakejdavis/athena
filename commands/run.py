@@ -89,6 +89,9 @@ def run(
                 f"\u2717 Mutation not killed in test case '{test_case.name}' {'with specific outputs' if specific_output is not None else ''}"
             )
 
+        nonmutated_generic = None
+        mutated_generic = None
+        generic_mutant_not_killed = None
         if specific_output is not None:
             nonmutated_generic = test_case.run(model, generic_inputs, generic_outputs)
             mutated_generic = test_case.run(
